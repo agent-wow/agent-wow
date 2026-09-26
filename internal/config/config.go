@@ -23,27 +23,32 @@ type Config struct {
 
 var current Config
 
-// Init loads defaults, an optional config file named config in the working
-// directory (for example, config.yaml), and environment overrides. Environment
+// Init loads defaults, a config file, and environment overrides. If configFile
+// is empty, it looks for an optional file named config in the working directory
+// (for example, config.yaml). An explicit configFile must exist. Environment
 // variables use the AGENT_WOW prefix, such as AGENT_WOW_AUTHSERVER_HOST and
 // AGENT_WOW_WORLDSERVER_PORT. They take precedence over file settings.
-// Call Init from main before starting any other client components.
-func Init() error {
+// Call Init before starting any other client components.
+func Init(configFile string) error {
 	v := viper.New()
 	v.SetDefault("authserver.host", "localhost")
 	v.SetDefault("authserver.port", 3724)
 	v.SetDefault("worldserver.host", "localhost")
 	v.SetDefault("worldserver.port", 8085)
 
-	v.SetConfigName("config")
-	v.AddConfigPath(".")
+	if configFile != "" {
+		v.SetConfigFile(configFile)
+	} else {
+		v.SetConfigName("config")
+		v.AddConfigPath(".")
+	}
 	v.SetEnvPrefix("AGENT_WOW")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
 	if err := v.ReadInConfig(); err != nil {
 		var notFound viper.ConfigFileNotFoundError
-		if !errors.As(err, &notFound) {
+		if configFile != "" || !errors.As(err, &notFound) {
 			return fmt.Errorf("read config: %w", err)
 		}
 	}
