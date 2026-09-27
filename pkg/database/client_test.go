@@ -1,0 +1,142 @@
+package database
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/dgraph-io/badger/v4"
+	"github.com/hazim-j/agent-wow/pkg/auth"
+)
+
+func TestSessionPersistence(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "data")
+	client, err := NewClient(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	if session, err := client.GetSession(); session != nil || !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("expected missing session, got error %v", err)
+	}
+	want := auth.Session{Username: "PLAYER", Key: [40]byte{1, 2, 3}, AccountFlags: 0x00800000, AuthServer: "localhost:3724"}
+	if err := client.SaveSession(&want); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Close(); err != nil {
+		t.Fatal(err)
+	}
+	client, err = NewClient(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	got, err := client.GetSession()
+	if err != nil || got == nil || *got != want {
+		t.Fatalf("session did not survive reopen: %v", err)
+	}
+	want.Username = "OTHER"
+	want.Key[39] = 255
+	if err := client.SaveSession(&want); err != nil {
+		t.Fatal(err)
+	}
+	got, err = client.GetSession()
+	if err != nil || got == nil || *got != want {
+		t.Fatalf("session was not replaced: %v", err)
+	}
+	info, err := os.Stat(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0700 {
+		t.Errorf("database directory mode = %o, want 0700", info.Mode().Perm())
+	}
+}
+
+func TestInvalidSessionPreservesSavedSession(t *testing.T) {
+	client, err := NewClient(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	want := auth.Session{Username: "PLAYER", Key: [40]byte{1}, AuthServer: "localhost:3724"}
+	if err := client.SaveSession(&want); err != nil {
+		t.Fatal(err)
+	}
+	for _, invalid := range []*auth.Session{
+		nil,
+		{},
+		{Username: "PLAYER", AuthServer: want.AuthServer},
+		{Username: "PLAYER", Key: want.Key},
+		{Username: "PLAYER\n", Key: want.Key, AuthServer: want.AuthServer},
+	} {
+		if err := client.SaveSession(invalid); err == nil {
+			t.Fatal("saved an invalid session")
+		}
+		got, err := client.GetSession()
+		if err != nil || got == nil || *got != want {
+			t.Fatalf("invalid save replaced existing session: %v", err)
+		}
+	}
+}
+
+func TestCorruptSession(t *testing.T) {
+	client, err := NewClient(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	for _, data := range []string{
+		`{"key":"secret-sentinel"`,
+		`{"username": "PLAYER", "key":"AQID", "auth_server":"localhost:3724"}`,
+		`null`,
+		`{}`,
+	} {
+		if err := client.db.Update(func(txn *badger.Txn) error {
+			return txn.Set([]byte(sessionKey), []byte(data))
+		}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := client.GetSession()
+		if got != nil || err == nil || errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("expected corrupt session error, got %v", err)
+		}
+		if strings.Contains(err.Error(), "secret-sentinel") {
+			t.Fatal("error leaked saved data")
+		}
+	}
+}
+
+func TestDatabaseErrors(t *testing.T) {
+	if client, err := NewClient(""); client != nil || err == nil {
+		t.Fatal("accepted empty database path")
+	}
+	dir := t.TempDir()
+	file := filepath.Join(dir, "file")
+	if err := os.WriteFile(file, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if client, err := NewClient(file); client != nil || err == nil {
+		t.Fatal("opened file as database directory")
+	}
+	client, err := NewClient(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	if second, err := NewClient(dir); err == nil {
+		second.Close()
+		t.Fatal("opened the same database twice")
+	}
+	if err := client.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.GetSession(); err == nil || errors.Is(err, ErrSessionNotFound) {
+		t.Fatal("closed database reported a missing session")
+	}
+	if err := client.SaveSession(&auth.Session{Username: "PLAYER", Key: [40]byte{1}, AuthServer: "localhost:3724"}); err == nil {
+		t.Fatal("saved to a closed database")
+	}
+}

@@ -23,4 +23,11 @@ Run from the repository root:
 ./run build                        # Compile to bin/agent-wow
 ./run dev <command> [args...]      # Run a command in development
 ./run dev --help                   # Show available commands
+./run db:dump                      # Print the dev database as formatted JSON
+./run db:rm                        # Delete the dev database directory
 ```
+
+`db:dump` opens the database configured by `data_dir` in `dev.config.yaml` in
+read-only mode. The output includes complete records, including session keys.
+`db:rm` deletes the repository's `data/` directory and its saved sessions, while
+preserving credentials in `config/auth.json`.

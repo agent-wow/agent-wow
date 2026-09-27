@@ -8,11 +8,15 @@ usage() {
     cat <<'EOF'
 Usage: ./run build [go build flags]
        ./run dev [commands and flags]
+       ./run db:dump
+       ./run db:rm
 
 Examples:
   ./run build
   ./run dev auth init
   ./run dev auth login --timeout 5s
+  ./run db:dump
+  ./run db:rm
 EOF
 }
 
@@ -24,6 +28,22 @@ case "${1:-}" in
     dev)
         shift
         exec go run . --config dev.config.yaml "$@"
+        ;;
+    db:dump)
+        shift
+        if [ "$#" -ne 0 ]; then
+            usage >&2
+            exit 2
+        fi
+        exec go run ./tools/dumpdb
+        ;;
+    db:rm)
+        shift
+        if [ "$#" -ne 0 ]; then
+            usage >&2
+            exit 2
+        fi
+        exec rm -rf -- ./data
         ;;
     ""|-h|--help)
         usage
