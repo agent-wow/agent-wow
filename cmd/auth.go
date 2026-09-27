@@ -36,7 +36,7 @@ func newAuthInitCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
 		Short: "Interactive setup for auth.json file",
-		Long:  `Interactive setup for auth.json file with account username and password`,
+		Long:  `Interactive setup for config_dir/auth.json file with account username and password`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.SilenceUsage = true
@@ -58,9 +58,12 @@ func newAuthLoginCommand() *cobra.Command {
 	var timeout time.Duration
 	command := &cobra.Command{
 		Use:   "login",
-		Short: "Authenticate with the authserver",
-		Long:  "Authenticate with the AzerothCore authserver and restore the selected realm. On first login, automatically select the first available realm and save it in config_dir/realm.json.",
-		Args:  cobra.NoArgs,
+		Short: "Authenticate with the authserver using the auth.json file",
+		Long: `Authenticate with the AzerothCore authserver using the config_dir/auth.json file.
+
+The selected realm will be based on config_dir/realm.json.
+On first login, the first available realm from the authservers realm list will be automatically selected.`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.SilenceUsage = true
 			if timeout <= 0 {
