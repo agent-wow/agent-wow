@@ -12,17 +12,16 @@ var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:          "agent-wow",
-	Short:        "AzerothCore WoW client designed for AI agent players.",
-	SilenceUsage: true,
+	Use:   "agent-wow",
+	Short: "AzerothCore WoW client designed for AI agent players.",
+	Long: `
+An opensource headless WoW client for AzerothCore.
+Built for AI agents.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := config.Init(cfgFile); err != nil {
 			return fmt.Errorf("initialize config: %w", err)
 		}
 		return nil
-	},
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Fprintln(cmd.OutOrStdout(), "TODO: implement")
 	},
 }
 
