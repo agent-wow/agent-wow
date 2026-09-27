@@ -86,7 +86,7 @@ func TestCheckSession(t *testing.T) {
 				_, err := conn.Write(tc.response)
 				return err
 			})
-			session := &Session{Username: "player", Key: key, AuthServer: address}
+			session := &Session{Username: "player", Key: key}
 			if tc.staleKey {
 				session.Key[0] ^= 1
 			}
@@ -129,7 +129,7 @@ func TestCheckSessionCancellation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = client.CheckSession(ctx, &Session{Username: "PLAYER", Key: [40]byte{1}, AuthServer: address})
+		err = client.CheckSession(ctx, &Session{Username: "PLAYER", Key: [40]byte{1}})
 		cancel()
 		var timeout net.Error
 		if err == nil || !(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.As(err, &timeout) && timeout.Timeout()) {
@@ -143,20 +143,9 @@ func TestCheckSessionInvalid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, session := range []*Session{nil, {}, {Username: "PLAYER"}, {Username: "bad\nname", Key: [40]byte{1}, AuthServer: "localhost:3724"}} {
+	for _, session := range []*Session{nil, {}, {Username: "PLAYER"}, {Username: "bad\nname", Key: [40]byte{1}}} {
 		if err := client.CheckSession(context.Background(), session); err == nil || err.Error() != "invalid session" {
 			t.Fatalf("expected invalid session error, got %v", err)
 		}
-	}
-}
-
-func TestCheckSessionDifferentServer(t *testing.T) {
-	client, err := NewClient("configured.invalid:3724")
-	if err != nil {
-		t.Fatal(err)
-	}
-	session := &Session{Username: "PLAYER", Key: [40]byte{1}, AuthServer: "other.invalid:3724"}
-	if err := client.CheckSession(context.Background(), session); err == nil || !strings.Contains(err.Error(), "different authserver") {
-		t.Fatalf("expected server mismatch before connecting, got %v", err)
 	}
 }

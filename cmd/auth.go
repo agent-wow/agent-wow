@@ -13,6 +13,7 @@ import (
 
 	"github.com/hazim-j/agent-wow/internal/config"
 	"github.com/hazim-j/agent-wow/internal/credentials"
+	realmstore "github.com/hazim-j/agent-wow/internal/realm"
 	"github.com/hazim-j/agent-wow/pkg/account"
 	"github.com/hazim-j/agent-wow/pkg/auth"
 	"github.com/hazim-j/agent-wow/pkg/database"
@@ -58,7 +59,7 @@ func newAuthLoginCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:   "login",
 		Short: "Authenticate with the authserver",
-		Long:  "Authenticate with the AzerothCore authserver to connect to the worldserver",
+		Long:  "Authenticate with the AzerothCore authserver and restore the selected realm. On first login, automatically select the first available realm and save it in config_dir/realm.json.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.SilenceUsage = true
@@ -73,8 +74,7 @@ func newAuthLoginCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			server := cfg.AuthServer
-			address := net.JoinHostPort(server.Host, strconv.Itoa(server.Port))
+			address := authServerAddress()
 			authClient, err := auth.NewClient(address)
 			if err != nil {
 				return err
@@ -92,11 +92,17 @@ func newAuthLoginCommand() *cobra.Command {
 			if err := errors.Join(dbClient.SaveSession(session), dbClient.Close()); err != nil {
 				return fmt.Errorf("persist authenticated session: %w", err)
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Authentication success.\nUsername: %s\nAccount flags: %s\nAuthserver: %s\n", session.Username, account.FormatFlags(session.AccountFlags), address)
-			return err
+			realms, err := authClient.ListRealms(ctx, session)
+			if err == nil {
+				err = selectLoginRealm(realms)
+			}
+			if err != nil {
+				return fmt.Errorf("authenticated session saved, but realm selection failed: %w", err)
+			}
+			return printAuthSummary(cmd.OutOrStdout(), "Authentication success.", session, address)
 		},
 	}
-	command.Flags().DurationVar(&timeout, "timeout", 10*time.Second, "Timeout for the authserver connection and login")
+	command.Flags().DurationVar(&timeout, "timeout", 10*time.Second, "Timeout for login and realm selection")
 	return command
 }
 
@@ -112,23 +118,11 @@ func newAuthStatusCommand() *cobra.Command {
 			if timeout <= 0 {
 				return errors.New("--timeout must be greater than zero")
 			}
-			cfg := config.Get()
-			dbClient, err := database.NewClient(cfg.DataDir)
+			session, err := loadSavedSession()
 			if err != nil {
 				return err
 			}
-			session, err := dbClient.GetSession()
-			err = errors.Join(err, dbClient.Close())
-			if errors.Is(err, database.ErrSessionNotFound) {
-				return fmt.Errorf("no saved session; run 'agent-wow auth login' to authenticate: %w", err)
-			}
-			if err != nil {
-				return err
-			}
-			address := net.JoinHostPort(cfg.AuthServer.Host, strconv.Itoa(cfg.AuthServer.Port))
-			if session.AuthServer != address {
-				return errors.New("saved session belongs to a different authserver; run 'agent-wow auth login' to authenticate with the configured server")
-			}
+			address := authServerAddress()
 			authClient, err := auth.NewClient(address)
 			if err != nil {
 				return err
@@ -138,12 +132,44 @@ func newAuthStatusCommand() *cobra.Command {
 			if err := authClient.CheckSession(ctx, session); err != nil {
 				return fmt.Errorf("could not validate saved session for %s: %w", session.Username, err)
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Session valid.\nUsername: %s\nAccount flags: %s\nAuthserver: %s\n", session.Username, account.FormatFlags(session.AccountFlags), address)
-			return err
+			return printAuthSummary(cmd.OutOrStdout(), "Session valid.", session, address)
 		},
 	}
 	command.Flags().DurationVar(&timeout, "timeout", 10*time.Second, "Timeout for checking the session with the authserver")
 	return command
+}
+
+func loadSavedSession() (*auth.Session, error) {
+	cfg := config.Get()
+	dbClient, err := database.NewClient(cfg.DataDir)
+	if err != nil {
+		return nil, err
+	}
+	session, err := dbClient.GetSession()
+	err = errors.Join(err, dbClient.Close())
+	if errors.Is(err, database.ErrSessionNotFound) {
+		return nil, fmt.Errorf("no saved session; run 'agent-wow auth login' to authenticate: %w", err)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+func authServerAddress() string {
+	server := config.Get().AuthServer
+	return net.JoinHostPort(server.Host, strconv.Itoa(server.Port))
+}
+
+func printAuthSummary(out io.Writer, message string, session *auth.Session, address string) error {
+	selectedRealm, realmAddress := "none", "none"
+	if selected := realmstore.Get(); selected != nil {
+		selectedRealm = fmt.Sprintf("%s (ID: %d)", selected.Name, selected.ID)
+		realmAddress = selected.Address
+	}
+	_, err := fmt.Fprintf(out, "%s\nUsername: %s\nAccount flags: %s\nAuthserver: %s\nSelected realm: %s\nAddress: %s\n",
+		message, session.Username, account.FormatFlags(session.AccountFlags), address, selectedRealm, realmAddress)
+	return err
 }
 
 func promptCredentials(input io.Reader, output io.Writer) (credentials.Credentials, error) {
