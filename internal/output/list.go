@@ -1,4 +1,5 @@
-package cmd
+// Package output formats command results for display.
+package output
 
 import (
 	"encoding/json"
@@ -28,7 +29,8 @@ type realmListEntry struct {
 	Address    string  `json:"address"`
 }
 
-func writeRealmJSON(out io.Writer, realms []auth.Realm, selectedID *uint8) error {
+// WriteRealmJSON writes the realm list envelope, including the current selection.
+func WriteRealmJSON(out io.Writer, realms []auth.Realm, selectedID *uint8) error {
 	entries := make([]realmListEntry, 0, len(realms))
 	for _, r := range realms {
 		entries = append(entries, realmListEntry{Selected: selectedID != nil && r.ID == *selectedID,
@@ -53,7 +55,9 @@ type characterListEntry struct {
 	MapName  string `json:"map_name"`
 }
 
-func writeCharacterJSON(out io.Writer, realm auth.Realm, characters []char.Character) error {
+// WriteCharacterJSON writes the character list and realm identity, using string
+// GUIDs and map/zone labels alongside their numeric IDs.
+func WriteCharacterJSON(out io.Writer, realm auth.Realm, characters []char.Character) error {
 	result := struct {
 		Realm struct {
 			ID   uint8  `json:"id"`

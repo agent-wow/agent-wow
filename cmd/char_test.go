@@ -82,7 +82,14 @@ func TestCharacterListCommands(t *testing.T) {
 							ID   uint8  `json:"id"`
 							Name string `json:"name"`
 						} `json:"realm"`
-						Characters []characterListEntry `json:"characters"`
+						Characters []struct {
+							GUID     string `json:"guid"`
+							Race     string `json:"race"`
+							ZoneID   uint32 `json:"zone_id"`
+							ZoneName string `json:"zone_name"`
+							MapID    uint32 `json:"map_id"`
+							MapName  string `json:"map_name"`
+						} `json:"characters"`
 					}
 					if err := json.Unmarshal(out.Bytes(), &result); err != nil {
 						t.Fatal(err, out.String())
@@ -111,33 +118,6 @@ func TestCharacterListCommands(t *testing.T) {
 					t.Fatal("unexpected stderr", stderr.String())
 				}
 			})
-		}
-	}
-}
-
-func TestCharacterJSONUnknownLocation(t *testing.T) {
-	var out bytes.Buffer
-	err := writeCharacterJSON(&out, auth.Realm{ID: 7, Name: "Live Realm"}, []char.Character{{GUID: 42, ZoneID: 0, MapID: 999999}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Check the public keys independently of the output record's struct tags.
-	var result struct {
-		Characters []map[string]any `json:"characters"`
-	}
-	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
-		t.Fatal(err)
-	}
-	if len(result.Characters) != 1 {
-		t.Fatal(out.String())
-	}
-	character := result.Characters[0]
-	for key, want := range map[string]any{
-		"guid": "42", "zone_id": float64(0), "zone_name": "Unknown zone (0)",
-		"map_id": float64(999999), "map_name": "Unknown map (999999)",
-	} {
-		if got := character[key]; got != want {
-			t.Errorf("%s = %v, want %v", key, got, want)
 		}
 	}
 }

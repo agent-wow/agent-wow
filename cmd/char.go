@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/hazim-j/agent-wow/internal/output"
 	"github.com/hazim-j/agent-wow/pkg/auth"
 	"github.com/hazim-j/agent-wow/pkg/char"
 	"github.com/hazim-j/agent-wow/pkg/maps"
@@ -113,7 +114,7 @@ func (deps characterCommands) listCommand(timeout *time.Duration) *cobra.Command
 				return err
 			}
 			if jsonOutput {
-				return writeCharacterJSON(cmd.OutOrStdout(), realm, characters)
+				return output.WriteCharacterJSON(cmd.OutOrStdout(), realm, characters)
 			}
 			out := cmd.OutOrStdout()
 			if _, err := fmt.Fprintf(out, "Realm: %s (ID: %d)\n", realm.Name, realm.ID); err != nil {

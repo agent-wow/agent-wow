@@ -43,7 +43,12 @@ func TestRealmListJSON(t *testing.T) {
 				t.Fatal(err)
 			}
 			var result struct {
-				Realms []realmListEntry `json:"realms"`
+				Realms []struct {
+					Selected   bool   `json:"selected"`
+					Type       string `json:"type"`
+					Status     string `json:"status"`
+					Characters uint8  `json:"characters"`
+				} `json:"realms"`
 			}
 			if err := json.Unmarshal(out.Bytes(), &result); err != nil {
 				t.Fatal(err, out.String())

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/hazim-j/agent-wow/internal/config"
+	"github.com/hazim-j/agent-wow/internal/output"
 	realmstore "github.com/hazim-j/agent-wow/internal/realm"
 	"github.com/hazim-j/agent-wow/pkg/auth"
 	realmtypes "github.com/hazim-j/agent-wow/pkg/realm"
@@ -50,7 +51,7 @@ func newRealmCommand() *cobra.Command {
 				if selected != nil {
 					selectedID = &selected.ID
 				}
-				return writeRealmJSON(cmd.OutOrStdout(), realms, selectedID)
+				return output.WriteRealmJSON(cmd.OutOrStdout(), realms, selectedID)
 			}
 			out := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
 			fmt.Fprintln(out, "SELECTED\tID\tNAME\tTYPE\tSTATUS\tCHARACTERS\tPOPULATION\tADDRESS")
