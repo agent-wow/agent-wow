@@ -19,11 +19,11 @@ type Server struct {
 
 // Config contains the settings shared by client packages.
 type Config struct {
-	ConfigDir    string `mapstructure:"config_dir"`
-	DataDir      string `mapstructure:"data_dir"`
-	AuthFilePath string `mapstructure:"auth_file_path"`
-	AuthServer   Server `mapstructure:"authserver"`
-	WorldServer  Server `mapstructure:"worldserver"`
+	ConfigDir     string `mapstructure:"config_dir"`
+	DataDir       string `mapstructure:"data_dir"`
+	AuthFilePath  string `mapstructure:"auth_file_path"`
+	RealmFilePath string `mapstructure:"realm_file_path"`
+	AuthServer    Server `mapstructure:"authserver"`
 }
 
 var current Config
@@ -32,7 +32,7 @@ var current Config
 // is empty, it looks for an optional file named config in the working directory
 // (for example, config.yaml). An explicit configFile must exist. Environment
 // variables use the AGENT_WOW prefix, such as AGENT_WOW_AUTHSERVER_HOST and
-// AGENT_WOW_WORLDSERVER_PORT. They take precedence over file settings.
+// AGENT_WOW_AUTHSERVER_PORT. They take precedence over file settings.
 // Call Init before starting any other client components.
 func Init(configFile string) error {
 	homeDir, err := os.UserHomeDir()
@@ -44,8 +44,6 @@ func Init(configFile string) error {
 	v.SetDefault("data_dir", filepath.Join(homeDir, ".local", "share", "agent-wow"))
 	v.SetDefault("authserver.host", "localhost")
 	v.SetDefault("authserver.port", 3724)
-	v.SetDefault("worldserver.host", "localhost")
-	v.SetDefault("worldserver.port", 8085)
 
 	if configFile != "" {
 		v.SetConfigFile(configFile)
@@ -64,8 +62,9 @@ func Init(configFile string) error {
 		}
 	}
 
-	// Resolve this default after loading overrides so it follows ConfigDir.
+	// Resolve these defaults after loading overrides so they follow ConfigDir.
 	v.SetDefault("auth_file_path", filepath.Join(v.GetString("config_dir"), "auth.json"))
+	v.SetDefault("realm_file_path", filepath.Join(v.GetString("config_dir"), "realm.json"))
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return fmt.Errorf("decode config: %w", err)
@@ -79,10 +78,10 @@ func Init(configFile string) error {
 	if strings.TrimSpace(cfg.AuthFilePath) == "" {
 		return errors.New("auth_file_path must not be empty")
 	}
-	if err := validateServer("authserver", cfg.AuthServer); err != nil {
-		return err
+	if strings.TrimSpace(cfg.RealmFilePath) == "" {
+		return errors.New("realm_file_path must not be empty")
 	}
-	if err := validateServer("worldserver", cfg.WorldServer); err != nil {
+	if err := validateServer("authserver", cfg.AuthServer); err != nil {
 		return err
 	}
 	current = cfg

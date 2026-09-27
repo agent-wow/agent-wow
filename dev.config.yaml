@@ -4,7 +4,3 @@ data_dir: ./data
 # authserver:
 #   host: localhost
 #   port: 3724
-
-# worldserver:
-#   host: localhost
-#   port: 8085

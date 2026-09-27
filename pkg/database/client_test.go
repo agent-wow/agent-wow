@@ -1,6 +1,7 @@
 package database
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -21,10 +22,11 @@ func TestSessionPersistence(t *testing.T) {
 	if session, err := client.GetSession(); session != nil || !errors.Is(err, ErrSessionNotFound) {
 		t.Fatalf("expected missing session, got error %v", err)
 	}
-	want := auth.Session{Username: "PLAYER", Key: [40]byte{1, 2, 3}, AccountFlags: 0x00800000, AuthServer: "localhost:3724"}
+	want := auth.Session{Username: "PLAYER", Key: [40]byte{1, 2, 3}, AccountFlags: 0x00800000}
 	if err := client.SaveSession(&want); err != nil {
 		t.Fatal(err)
 	}
+	assertSessionStorageFields(t, client)
 	if err := client.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -61,16 +63,15 @@ func TestInvalidSessionPreservesSavedSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer client.Close()
-	want := auth.Session{Username: "PLAYER", Key: [40]byte{1}, AuthServer: "localhost:3724"}
+	want := auth.Session{Username: "PLAYER", Key: [40]byte{1}}
 	if err := client.SaveSession(&want); err != nil {
 		t.Fatal(err)
 	}
 	for _, invalid := range []*auth.Session{
 		nil,
 		{},
-		{Username: "PLAYER", AuthServer: want.AuthServer},
-		{Username: "PLAYER", Key: want.Key},
-		{Username: "PLAYER\n", Key: want.Key, AuthServer: want.AuthServer},
+		{Username: "PLAYER"},
+		{Username: "PLAYER\n", Key: want.Key},
 	} {
 		if err := client.SaveSession(invalid); err == nil {
 			t.Fatal("saved an invalid session")
@@ -90,7 +91,7 @@ func TestCorruptSession(t *testing.T) {
 	defer client.Close()
 	for _, data := range []string{
 		`{"key":"secret-sentinel"`,
-		`{"username": "PLAYER", "key":"AQID", "auth_server":"localhost:3724"}`,
+		`{"username": "PLAYER", "key":"AQID"}`,
 		`null`,
 		`{}`,
 	} {
@@ -136,7 +137,53 @@ func TestDatabaseErrors(t *testing.T) {
 	if _, err := client.GetSession(); err == nil || errors.Is(err, ErrSessionNotFound) {
 		t.Fatal("closed database reported a missing session")
 	}
-	if err := client.SaveSession(&auth.Session{Username: "PLAYER", Key: [40]byte{1}, AuthServer: "localhost:3724"}); err == nil {
+	if err := client.SaveSession(&auth.Session{Username: "PLAYER", Key: [40]byte{1}}); err == nil {
 		t.Fatal("saved to a closed database")
+	}
+}
+
+func TestLegacySession(t *testing.T) {
+	client, err := NewClient(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	want := auth.Session{Username: "PLAYER", Key: [40]byte{1, 2, 3}, AccountFlags: 0x00800000}
+	data, err := json.Marshal(map[string]any{
+		"username": want.Username, "key": want.Key[:], "account_flags": want.AccountFlags,
+		"auth_server": "old.example:3724",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.db.Update(func(txn *badger.Txn) error {
+		return txn.Set([]byte(sessionKey), data)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := client.GetSession()
+	if err != nil || got == nil || *got != want {
+		t.Fatalf("legacy session did not load: %v", err)
+	}
+	if err := client.SaveSession(got); err != nil {
+		t.Fatal(err)
+	}
+	assertSessionStorageFields(t, client)
+}
+
+func assertSessionStorageFields(t *testing.T, client *Client) {
+	t.Helper()
+	var fields map[string]json.RawMessage
+	if err := client.db.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte(sessionKey))
+		if err != nil {
+			return err
+		}
+		return item.Value(func(data []byte) error { return json.Unmarshal(data, &fields) })
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fields) != 3 || fields["username"] == nil || fields["key"] == nil || fields["account_flags"] == nil {
+		t.Fatal("saved session must contain only username, key and account_flags")
 	}
 }

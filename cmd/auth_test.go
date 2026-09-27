@@ -187,12 +187,15 @@ func TestAuthLoginUsesFileAndConfiguredServer(t *testing.T) {
 }
 
 func TestAuthStatusUsesSavedSession(t *testing.T) {
-	for _, valid := range []bool{true, false} {
-		name := "valid"
-		if !valid {
-			name = "stale"
-		}
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		valid, selected bool
+	}{
+		{"valid with realm", true, true},
+		{"valid without realm", true, false},
+		{"stale", false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			listener, err := net.Listen("tcp", "127.0.0.1:0")
 			if err != nil {
 				t.Fatal(err)
@@ -202,7 +205,12 @@ func TestAuthStatusUsesSavedSession(t *testing.T) {
 			t.Setenv("AGENT_WOW_AUTHSERVER_HOST", host)
 			t.Setenv("AGENT_WOW_AUTHSERVER_PORT", port)
 			initTestConfig(t)
-			saved := &auth.Session{Username: "PLAYER", Key: [40]byte{1, 2, 3}, AccountFlags: 0x00800009, AuthServer: listener.Addr().String()}
+			if tc.selected {
+				if err := saveRealm(auth.Realm{ID: 7, Name: "Selected Realm", Address: "127.0.0.1:8085"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			saved := &auth.Session{Username: "PLAYER", Key: [40]byte{1, 2, 3}, AccountFlags: 0x00800009}
 			saveTestSession(t, saved)
 			// No auth.json exists: status must work entirely from the saved session.
 			done := make(chan error, 1)
@@ -239,7 +247,7 @@ func TestAuthStatusUsesSavedSession(t *testing.T) {
 					if !bytes.Equal(proof[17:37], hash.Sum(nil)) {
 						return errors.New("status did not use the saved session key")
 					}
-					if !valid {
+					if !tc.valid {
 						return nil
 					}
 					_, err := conn.Write([]byte{3, 0, 0, 0})
@@ -256,11 +264,16 @@ func TestAuthStatusUsesSavedSession(t *testing.T) {
 			if serverErr := <-done; serverErr != nil {
 				t.Fatal(serverErr)
 			}
-			wantOutput := "Session valid.\nUsername: PLAYER\nAccount flags: 0x00800009 (GM: game master account; TRIAL: trial account; PROPASS_LOCK: Pro Pass (Arena Tournament))\nAuthserver: " + saved.AuthServer + "\n"
-			if valid && (err != nil || output.String() != wantOutput) {
+			wantOutput := "Session valid.\nUsername: PLAYER\nAccount flags: 0x00800009 (GM: game master account; TRIAL: trial account; PROPASS_LOCK: Pro Pass (Arena Tournament))\nAuthserver: " + listener.Addr().String() + "\n"
+			if tc.selected {
+				wantOutput += "Selected realm: Selected Realm (ID: 7)\nAddress: 127.0.0.1:8085\n"
+			} else {
+				wantOutput += "Selected realm: none\nAddress: none\n"
+			}
+			if tc.valid && (err != nil || output.String() != wantOutput) {
 				t.Fatalf("expected valid status, got %q, %v", output.String(), err)
 			}
-			if !valid && (err == nil || output.Len() != 0) {
+			if !tc.valid && (err == nil || output.Len() != 0) {
 				t.Fatalf("stale session reported success: %q, %v", output.String(), err)
 			}
 			client, err := database.NewClient(config.Get().DataDir)
@@ -276,18 +289,6 @@ func TestAuthStatusUsesSavedSession(t *testing.T) {
 	}
 }
 
-func TestAuthStatusServerMismatch(t *testing.T) {
-	initTestConfig(t)
-	saveTestSession(t, &auth.Session{Username: "PLAYER", Key: [40]byte{1}, AuthServer: "other.invalid:3724"})
-	cmd := newAuthCommand()
-	cmd.SetArgs([]string{"status"})
-	cmd.SetOut(io.Discard)
-	cmd.SetErr(io.Discard)
-	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "different authserver") {
-		t.Fatalf("expected server mismatch, got %v", err)
-	}
-}
-
 func saveTestSession(t *testing.T, session *auth.Session) {
 	t.Helper()
 	client, err := database.NewClient(config.Get().DataDir)
@@ -300,12 +301,13 @@ func saveTestSession(t *testing.T, session *auth.Session) {
 	}
 }
 
-func initTestConfig(t *testing.T) {
+func initTestConfig(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	t.Setenv("AGENT_WOW_CONFIG_DIR", filepath.Join(root, "config"))
 	t.Setenv("AGENT_WOW_DATA_DIR", filepath.Join(root, "data"))
 	t.Setenv("AGENT_WOW_AUTH_FILE_PATH", "")
+	t.Setenv("AGENT_WOW_REALM_FILE_PATH", "")
 	configPath := filepath.Join(root, "config.json")
 	if err := os.WriteFile(configPath, []byte("{}"), 0600); err != nil {
 		t.Fatal(err)
@@ -313,6 +315,7 @@ func initTestConfig(t *testing.T) {
 	if err := config.Init(configPath); err != nil {
 		t.Fatal(err)
 	}
+	return configPath
 }
 
 type errorReader struct{}

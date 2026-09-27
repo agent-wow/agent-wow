@@ -51,7 +51,6 @@ type storedSession struct {
 	Username     string `json:"username"`
 	Key          []byte `json:"key"`
 	AccountFlags uint32 `json:"account_flags"`
-	AuthServer   string `json:"auth_server"`
 }
 
 const sessionKey = "session"
@@ -62,7 +61,7 @@ func (c *Client) SaveSession(session *auth.Session) error {
 	if session == nil {
 		return errors.New("cannot save a nil session")
 	}
-	stored := storedSession{session.Username, session.Key[:], session.AccountFlags, session.AuthServer}
+	stored := storedSession{session.Username, session.Key[:], session.AccountFlags}
 	if err := stored.validate(); err != nil {
 		return fmt.Errorf("save session: %w", err)
 	}
@@ -100,7 +99,7 @@ func (c *Client) GetSession() (*auth.Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get session: %w", err)
 	}
-	session := &auth.Session{Username: stored.Username, AccountFlags: stored.AccountFlags, AuthServer: stored.AuthServer}
+	session := &auth.Session{Username: stored.Username, AccountFlags: stored.AccountFlags}
 	copy(session.Key[:], stored.Key)
 	return session, nil
 }
@@ -111,9 +110,6 @@ func (s storedSession) validate() error {
 	}
 	if len(s.Key) != 40 || [40]byte(s.Key) == [40]byte{} {
 		return errors.New("invalid saved session key")
-	}
-	if strings.TrimSpace(s.AuthServer) == "" {
-		return errors.New("missing saved session authserver")
 	}
 	return nil
 }

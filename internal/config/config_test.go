@@ -33,6 +33,7 @@ func TestStoragePaths(t *testing.T) {
 			t.Setenv("AGENT_WOW_CONFIG_DIR", tc.envConfigDir)
 			t.Setenv("AGENT_WOW_DATA_DIR", tc.envDataDir)
 			t.Setenv("AGENT_WOW_AUTH_FILE_PATH", tc.envFile)
+			t.Setenv("AGENT_WOW_REALM_FILE_PATH", "")
 			path := filepath.Join(t.TempDir(), "config.json")
 			if err := os.WriteFile(path, []byte(tc.config), 0600); err != nil {
 				t.Fatal(err)
@@ -50,6 +51,40 @@ func TestStoragePaths(t *testing.T) {
 			cfg := Get()
 			if cfg.ConfigDir != tc.wantConfigDir || cfg.DataDir != tc.wantDataDir || cfg.AuthFilePath != tc.wantFile {
 				t.Errorf("unexpected storage paths: ConfigDir=%q, DataDir=%q, AuthFilePath=%q", cfg.ConfigDir, cfg.DataDir, cfg.AuthFilePath)
+			}
+			if want := filepath.Join(tc.wantConfigDir, "realm.json"); cfg.RealmFilePath != want {
+				t.Errorf("RealmFilePath=%q, want %q", cfg.RealmFilePath, want)
+			}
+		})
+	}
+}
+
+func TestRealmFilePath(t *testing.T) {
+	for _, tc := range []struct {
+		name, config, envFile, want, wantErr string
+	}{
+		{name: "explicit file", config: `{"realm_file_path":"/tmp/selected-realm.json"}`, want: "/tmp/selected-realm.json"},
+		{name: "environment override", config: `{"realm_file_path":"/tmp/from-config.json"}`, envFile: "/tmp/from-env.json", want: "/tmp/from-env.json"},
+		{name: "empty file", config: `{"realm_file_path":""}`, wantErr: "realm_file_path must not be empty"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("AGENT_WOW_REALM_FILE_PATH", tc.envFile)
+			path := filepath.Join(t.TempDir(), "config.json")
+			if err := os.WriteFile(path, []byte(tc.config), 0600); err != nil {
+				t.Fatal(err)
+			}
+			err := Init(path)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected %q, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := Get().RealmFilePath; got != tc.want {
+				t.Errorf("RealmFilePath=%q, want %q", got, tc.want)
 			}
 		})
 	}

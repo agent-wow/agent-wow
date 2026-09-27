@@ -40,9 +40,6 @@ func (c *Client) Login(ctx context.Context, username, password string) (*Session
 	if ctx.Err() != nil {
 		return nil, fmt.Errorf("authenticate: %w", ctx.Err())
 	}
-	if session != nil {
-		session.AuthServer = c.address
-	}
 	return session, err
 }
 

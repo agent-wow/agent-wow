@@ -104,7 +104,7 @@ func TestLogin(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if session.Username != "PLAYER" || session.AccountFlags != 0x00800000 || session.Key == [40]byte{} || session.AuthServer != address {
+			if session.Username != "PLAYER" || session.AccountFlags != 0x00800000 || session.Key == [40]byte{} {
 				t.Fatal("incorrect session fields")
 			}
 		})

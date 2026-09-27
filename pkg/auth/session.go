@@ -18,21 +18,22 @@ type Session struct {
 	Username     string
 	Key          [40]byte
 	AccountFlags uint32
-	AuthServer   string
 }
 
 // CheckSession checks a saved key using AzerothCore's reconnect challenge/proof
 // exchange. It does not need a password or replace the server's session key.
-// The session must belong to this client's authserver.
+// The authserver is the address supplied to NewClient.
 // Callers should set a context deadline. The connection is closed on return.
 func (c *Client) CheckSession(ctx context.Context, session *Session) error {
+	return c.withSession(ctx, session, nil)
+}
+
+// withSession keeps the reauthenticated connection open for a subsequent request.
+func (c *Client) withSession(ctx context.Context, session *Session, request func(net.Conn) error) error {
 	if session == nil || len(session.Username) == 0 || len(session.Username) > 17 ||
 		!utf8.ValidString(session.Username) || strings.ContainsAny(session.Username, "\x00\r\n") ||
-		session.Key == [40]byte{} || strings.TrimSpace(session.AuthServer) == "" {
+		session.Key == [40]byte{} {
 		return errors.New("invalid session")
-	}
-	if session.AuthServer != c.address {
-		return errors.New("saved session belongs to a different authserver")
 	}
 	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", c.address)
 	if err != nil {
@@ -47,8 +48,11 @@ func (c *Client) CheckSession(ctx context.Context, session *Session) error {
 		}
 	}
 	err = reconnect(conn, session)
+	if err == nil && request != nil {
+		err = request(conn)
+	}
 	if ctx.Err() != nil {
-		return fmt.Errorf("check session: %w", ctx.Err())
+		return fmt.Errorf("authserver request: %w", ctx.Err())
 	}
 	return err
 }
