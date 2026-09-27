@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Resolve paths relative to this repo, even when invoked from elsewhere.
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+
+usage() {
+    cat <<'EOF'
+Usage: ./run build [go build flags]
+       ./run dev [commands and flags]
+
+Examples:
+  ./run build
+  ./run dev auth init
+  ./run dev auth login --timeout 5s
+EOF
+}
+
+case "${1:-}" in
+    build)
+        shift
+        exec go build -o ./bin/agent-wow "$@" .
+        ;;
+    dev)
+        shift
+        exec go run . --config dev.config.yaml "$@"
+        ;;
+    ""|-h|--help)
+        usage
+        ;;
+    *)
+        printf 'Unknown task: %s\n' "$1" >&2
+        usage >&2
+        exit 2
+        ;;
+esac
