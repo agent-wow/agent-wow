@@ -19,6 +19,7 @@ import (
 
 func newRealmCommand() *cobra.Command {
 	var timeout time.Duration
+	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "realm",
 		Short: "List, select and check realms",
@@ -26,7 +27,7 @@ func newRealmCommand() *cobra.Command {
 		Args:  cobra.NoArgs,
 	}
 	command.PersistentFlags().DurationVar(&timeout, "timeout", 10*time.Second, "Timeout for fetching realms from the authserver")
-	command.AddCommand(&cobra.Command{
+	listCommand := &cobra.Command{
 		Use:   "list",
 		Short: "List realms and mark the current selection",
 		Args:  cobra.NoArgs,
@@ -36,13 +37,20 @@ func newRealmCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if len(realms) == 0 {
+			if len(realms) == 0 && !jsonOutput {
 				_, err := fmt.Fprintln(cmd.OutOrStdout(), "No realms available.")
 				return err
 			}
 			selected, err := loadSelectedRealm()
 			if err != nil {
 				return err
+			}
+			if jsonOutput {
+				var selectedID *uint8
+				if selected != nil {
+					selectedID = &selected.ID
+				}
+				return writeRealmJSON(cmd.OutOrStdout(), realms, selectedID)
 			}
 			out := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
 			fmt.Fprintln(out, "SELECTED\tID\tNAME\tTYPE\tSTATUS\tCHARACTERS\tPOPULATION\tADDRESS")
@@ -55,7 +63,9 @@ func newRealmCommand() *cobra.Command {
 			}
 			return out.Flush()
 		},
-	}, &cobra.Command{
+	}
+	listCommand.Flags().BoolVar(&jsonOutput, "json", false, "Output the realm list as JSON")
+	command.AddCommand(listCommand, &cobra.Command{
 		Use:     "set <id|name>",
 		Short:   "Select an available realm by ID or exact name",
 		Example: "  agent-wow realm set 1\n  agent-wow realm set \"AzerothCore\"",
