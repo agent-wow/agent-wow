@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha1"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"io"
 	"math"
@@ -19,6 +20,48 @@ import (
 	"github.com/hazim-j/agent-wow/pkg/auth"
 	"github.com/hazim-j/agent-wow/pkg/database"
 )
+
+func TestRealmListJSON(t *testing.T) {
+	for _, empty := range []bool{false, true} {
+		t.Run(map[bool]string{false: "realms", true: "empty"}[empty], func(t *testing.T) {
+			realms := []auth.Realm{}
+			if !empty {
+				realms = append(realms, auth.Realm{ID: 7, Name: "Live Realm", Address: "localhost:8085", Type: 1, Characters: 2, Population: 0.5})
+			}
+			serveCommandRealms(t, realms, false)
+			if !empty {
+				if err := saveRealm(realms[0]); err != nil {
+					t.Fatal(err)
+				}
+			}
+			command := newRealmCommand()
+			command.SetArgs([]string{"list", "--json"})
+			var out, stderr bytes.Buffer
+			command.SetOut(&out)
+			command.SetErr(&stderr)
+			if err := command.Execute(); err != nil {
+				t.Fatal(err)
+			}
+			var result struct {
+				Realms []struct {
+					Selected   bool   `json:"selected"`
+					Type       string `json:"type"`
+					Status     string `json:"status"`
+					Characters uint8  `json:"characters"`
+				} `json:"realms"`
+			}
+			if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+				t.Fatal(err, out.String())
+			}
+			if result.Realms == nil || len(result.Realms) != len(realms) || stderr.Len() != 0 {
+				t.Fatal(out.String(), stderr.String())
+			}
+			if !empty && (!result.Realms[0].Selected || result.Realms[0].Type != "PvP" || result.Realms[0].Status != "online" || result.Realms[0].Characters != 2) {
+				t.Fatal(out.String())
+			}
+		})
+	}
+}
 
 func TestRealmCommands(t *testing.T) {
 	realms := []auth.Realm{

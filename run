@@ -10,6 +10,9 @@ Usage: ./run build [go build flags]
        ./run dev [commands and flags]
        ./run db:dump
        ./run db:rm
+       ./run client-data:fetch
+       ./run charcatalog:generate
+       ./run mapcatalog:generate
 
 Examples:
   ./run build
@@ -17,6 +20,9 @@ Examples:
   ./run dev auth login --timeout 5s
   ./run db:dump
   ./run db:rm
+  ./run client-data:fetch
+  ./run charcatalog:generate
+  ./run mapcatalog:generate
 EOF
 }
 
@@ -44,6 +50,23 @@ case "${1:-}" in
             exit 2
         fi
         exec rm -rf -- ./data
+        ;;
+    client-data:fetch)
+        shift
+        if [ "$#" -ne 0 ]; then
+            usage >&2
+            exit 2
+        fi
+        exec go run ./tools/clientdata
+        ;;
+    charcatalog:generate|mapcatalog:generate)
+        generator="${1%:generate}"
+        shift
+        if [ "$#" -ne 0 ]; then
+            usage >&2
+            exit 2
+        fi
+        exec go run "./tools/$generator"
         ;;
     ""|-h|--help)
         usage
