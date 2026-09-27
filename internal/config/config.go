@@ -19,6 +19,7 @@ type Server struct {
 
 // Config contains the settings shared by client packages.
 type Config struct {
+	ConfigDir    string `mapstructure:"config_dir"`
 	DataDir      string `mapstructure:"data_dir"`
 	AuthFilePath string `mapstructure:"auth_file_path"`
 	AuthServer   Server `mapstructure:"authserver"`
@@ -39,7 +40,8 @@ func Init(configFile string) error {
 		return fmt.Errorf("resolve home directory: %w", err)
 	}
 	v := viper.New()
-	v.SetDefault("data_dir", filepath.Join(homeDir, ".config", "agent-wow"))
+	v.SetDefault("config_dir", filepath.Join(homeDir, ".config", "agent-wow"))
+	v.SetDefault("data_dir", filepath.Join(homeDir, ".local", "share", "agent-wow"))
 	v.SetDefault("authserver.host", "localhost")
 	v.SetDefault("authserver.port", 3724)
 	v.SetDefault("worldserver.host", "localhost")
@@ -62,11 +64,14 @@ func Init(configFile string) error {
 		}
 	}
 
-	// Resolve this default after loading overrides so it follows DataDir.
-	v.SetDefault("auth_file_path", filepath.Join(v.GetString("data_dir"), "auth.json"))
+	// Resolve this default after loading overrides so it follows ConfigDir.
+	v.SetDefault("auth_file_path", filepath.Join(v.GetString("config_dir"), "auth.json"))
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return fmt.Errorf("decode config: %w", err)
+	}
+	if strings.TrimSpace(cfg.ConfigDir) == "" {
+		return errors.New("config_dir must not be empty")
 	}
 	if strings.TrimSpace(cfg.DataDir) == "" {
 		return errors.New("data_dir must not be empty")

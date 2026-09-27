@@ -23,4 +23,6 @@ Run from the repository root:
 ./run build                        # Compile to bin/agent-wow
 ./run dev <command> [args...]      # Run a command in development
 ./run dev --help                   # Show available commands
+./run db:dump                      # Print the dev database as formatted JSON
+./run db:rm                        # Delete the dev database directory
 ```

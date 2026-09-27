@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"errors"
 	"io"
 	"net"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/hazim-j/agent-wow/internal/config"
 	"github.com/hazim-j/agent-wow/internal/credentials"
+	"github.com/hazim-j/agent-wow/pkg/auth"
+	"github.com/hazim-j/agent-wow/pkg/database"
 )
 
 func TestAuthLoginInputValidation(t *testing.T) {
@@ -26,6 +29,9 @@ func TestAuthLoginInputValidation(t *testing.T) {
 		{"removed username flag", []string{"login", "--username", "player"}, "unknown flag"},
 		{"removed password stdin flag", []string{"login", "--password-stdin"}, "unknown flag"},
 		{"positional argument", []string{"login", "player"}, "unknown command"},
+		{"status missing session", []string{"status"}, "run 'agent-wow auth login'"},
+		{"status invalid timeout", []string{"status", "--timeout", "0"}, "--timeout must be greater"},
+		{"status positional argument", []string{"status", "player"}, "unknown command"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			initTestConfig(t)
@@ -167,14 +173,137 @@ func TestAuthLoginUsesFileAndConfiguredServer(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Error(err)
 	}
-	if strings.Contains(output.String(), "secret") || strings.Contains(output.String(), "Authenticated") {
+	if strings.Contains(output.String(), "secret") || strings.Contains(output.String(), "Authentication success.") {
 		t.Fatal("failed login leaked the password or reported success")
+	}
+	client, err := database.NewClient(config.Get().DataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	if _, err := client.GetSession(); !errors.Is(err, database.ErrSessionNotFound) {
+		t.Fatalf("failed authentication saved a session: %v", err)
+	}
+}
+
+func TestAuthStatusUsesSavedSession(t *testing.T) {
+	for _, valid := range []bool{true, false} {
+		name := "valid"
+		if !valid {
+			name = "stale"
+		}
+		t.Run(name, func(t *testing.T) {
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer listener.Close()
+			host, port, _ := net.SplitHostPort(listener.Addr().String())
+			t.Setenv("AGENT_WOW_AUTHSERVER_HOST", host)
+			t.Setenv("AGENT_WOW_AUTHSERVER_PORT", port)
+			initTestConfig(t)
+			saved := &auth.Session{Username: "PLAYER", Key: [40]byte{1, 2, 3}, AccountFlags: 0x00800009, AuthServer: listener.Addr().String()}
+			saveTestSession(t, saved)
+			// No auth.json exists: status must work entirely from the saved session.
+			done := make(chan error, 1)
+			go func() {
+				conn, err := listener.Accept()
+				if err != nil {
+					done <- err
+					return
+				}
+				defer conn.Close()
+				conn.SetDeadline(time.Now().Add(3 * time.Second))
+				done <- func() error {
+					var request [40]byte
+					if _, err := io.ReadFull(conn, request[:]); err != nil {
+						return err
+					}
+					if request[0] != 2 || string(request[34:]) != saved.Username {
+						return errors.New("status did not reconnect using the saved username")
+					}
+					challenge := make([]byte, 34)
+					challenge[0], challenge[2] = 2, 99
+					if _, err := conn.Write(challenge); err != nil {
+						return err
+					}
+					var proof [58]byte
+					if _, err := io.ReadFull(conn, proof[:]); err != nil {
+						return err
+					}
+					hash := sha1.New()
+					hash.Write([]byte(saved.Username))
+					hash.Write(proof[1:17])
+					hash.Write(challenge[2:18])
+					hash.Write(saved.Key[:])
+					if !bytes.Equal(proof[17:37], hash.Sum(nil)) {
+						return errors.New("status did not use the saved session key")
+					}
+					if !valid {
+						return nil
+					}
+					_, err := conn.Write([]byte{3, 0, 0, 0})
+					return err
+				}()
+			}()
+			cmd := newAuthCommand()
+			cmd.SetArgs([]string{"status", "--timeout", "1s"})
+			var output bytes.Buffer
+			cmd.SetOut(&output)
+			cmd.SetErr(io.Discard)
+			err = cmd.Execute()
+			listener.Close()
+			if serverErr := <-done; serverErr != nil {
+				t.Fatal(serverErr)
+			}
+			wantOutput := "Session valid.\nUsername: PLAYER\nAccount flags: 0x00800009 (GM: game master account; TRIAL: trial account; PROPASS_LOCK: Pro Pass (Arena Tournament))\nAuthserver: " + saved.AuthServer + "\n"
+			if valid && (err != nil || output.String() != wantOutput) {
+				t.Fatalf("expected valid status, got %q, %v", output.String(), err)
+			}
+			if !valid && (err == nil || output.Len() != 0) {
+				t.Fatalf("stale session reported success: %q, %v", output.String(), err)
+			}
+			client, err := database.NewClient(config.Get().DataDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer client.Close()
+			got, err := client.GetSession()
+			if err != nil || got == nil || *got != *saved {
+				t.Fatalf("status changed the saved session: %v", err)
+			}
+		})
+	}
+}
+
+func TestAuthStatusServerMismatch(t *testing.T) {
+	initTestConfig(t)
+	saveTestSession(t, &auth.Session{Username: "PLAYER", Key: [40]byte{1}, AuthServer: "other.invalid:3724"})
+	cmd := newAuthCommand()
+	cmd.SetArgs([]string{"status"})
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "different authserver") {
+		t.Fatalf("expected server mismatch, got %v", err)
+	}
+}
+
+func saveTestSession(t *testing.T, session *auth.Session) {
+	t.Helper()
+	client, err := database.NewClient(config.Get().DataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	if err := client.SaveSession(session); err != nil {
+		t.Fatal(err)
 	}
 }
 
 func initTestConfig(t *testing.T) {
 	t.Helper()
 	root := t.TempDir()
+	t.Setenv("AGENT_WOW_CONFIG_DIR", filepath.Join(root, "config"))
 	t.Setenv("AGENT_WOW_DATA_DIR", filepath.Join(root, "data"))
 	t.Setenv("AGENT_WOW_AUTH_FILE_PATH", "")
 	configPath := filepath.Join(root, "config.json")

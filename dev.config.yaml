@@ -1,3 +1,4 @@
+config_dir: ./config
 data_dir: ./data
 
 # authserver:

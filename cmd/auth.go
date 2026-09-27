@@ -13,7 +13,9 @@ import (
 
 	"github.com/hazim-j/agent-wow/internal/config"
 	"github.com/hazim-j/agent-wow/internal/credentials"
+	"github.com/hazim-j/agent-wow/pkg/account"
 	"github.com/hazim-j/agent-wow/pkg/auth"
+	"github.com/hazim-j/agent-wow/pkg/database"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -25,7 +27,7 @@ func newAuthCommand() *cobra.Command {
 		Long:  `Commands to authenticate with the AzerothCore authserver`,
 		Args:  cobra.NoArgs,
 	}
-	command.AddCommand(newAuthInitCommand(), newAuthLoginCommand())
+	command.AddCommand(newAuthInitCommand(), newAuthLoginCommand(), newAuthStatusCommand())
 	return command
 }
 
@@ -73,17 +75,74 @@ func newAuthLoginCommand() *cobra.Command {
 			}
 			server := cfg.AuthServer
 			address := net.JoinHostPort(server.Host, strconv.Itoa(server.Port))
-			ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
-			defer cancel()
-			session, err := auth.Authenticate(ctx, address, creds.Username, creds.Password)
+			authClient, err := auth.NewClient(address)
 			if err != nil {
 				return err
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Authenticated as %s with %s.\n", session.Username, address)
+			dbClient, err := database.NewClient(cfg.DataDir)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
+			defer cancel()
+			session, err := authClient.Login(ctx, creds.Username, creds.Password)
+			if err != nil {
+				return errors.Join(err, dbClient.Close())
+			}
+			if err := errors.Join(dbClient.SaveSession(session), dbClient.Close()); err != nil {
+				return fmt.Errorf("persist authenticated session: %w", err)
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Authentication success.\nUsername: %s\nAccount flags: %s\nAuthserver: %s\n", session.Username, account.FormatFlags(session.AccountFlags), address)
 			return err
 		},
 	}
 	command.Flags().DurationVar(&timeout, "timeout", 10*time.Second, "Timeout for the authserver connection and login")
+	return command
+}
+
+func newAuthStatusCommand() *cobra.Command {
+	var timeout time.Duration
+	command := &cobra.Command{
+		Use:   "status",
+		Short: "Check whether the saved session is still valid",
+		Long:  "Check the database session with the authserver using its saved key, without logging in again",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.SilenceUsage = true
+			if timeout <= 0 {
+				return errors.New("--timeout must be greater than zero")
+			}
+			cfg := config.Get()
+			dbClient, err := database.NewClient(cfg.DataDir)
+			if err != nil {
+				return err
+			}
+			session, err := dbClient.GetSession()
+			err = errors.Join(err, dbClient.Close())
+			if errors.Is(err, database.ErrSessionNotFound) {
+				return fmt.Errorf("no saved session; run 'agent-wow auth login' to authenticate: %w", err)
+			}
+			if err != nil {
+				return err
+			}
+			address := net.JoinHostPort(cfg.AuthServer.Host, strconv.Itoa(cfg.AuthServer.Port))
+			if session.AuthServer != address {
+				return errors.New("saved session belongs to a different authserver; run 'agent-wow auth login' to authenticate with the configured server")
+			}
+			authClient, err := auth.NewClient(address)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
+			defer cancel()
+			if err := authClient.CheckSession(ctx, session); err != nil {
+				return fmt.Errorf("could not validate saved session for %s: %w", session.Username, err)
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Session valid.\nUsername: %s\nAccount flags: %s\nAuthserver: %s\n", session.Username, account.FormatFlags(session.AccountFlags), address)
+			return err
+		},
+	}
+	command.Flags().DurationVar(&timeout, "timeout", 10*time.Second, "Timeout for checking the session with the authserver")
 	return command
 }
 
