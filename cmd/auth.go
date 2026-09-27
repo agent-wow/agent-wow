@@ -13,7 +13,6 @@ import (
 
 	"github.com/hazim-j/agent-wow/internal/config"
 	"github.com/hazim-j/agent-wow/internal/credentials"
-	realmstore "github.com/hazim-j/agent-wow/internal/realm"
 	"github.com/hazim-j/agent-wow/pkg/account"
 	"github.com/hazim-j/agent-wow/pkg/auth"
 	"github.com/hazim-j/agent-wow/pkg/database"
@@ -165,12 +164,16 @@ func authServerAddress() string {
 }
 
 func printAuthSummary(out io.Writer, message string, session *auth.Session, address string) error {
+	selected, err := loadSelectedRealm()
+	if err != nil {
+		return err
+	}
 	selectedRealm, realmAddress := "none", "none"
-	if selected := realmstore.Get(); selected != nil {
+	if selected != nil {
 		selectedRealm = fmt.Sprintf("%s (ID: %d)", selected.Name, selected.ID)
 		realmAddress = selected.Address
 	}
-	_, err := fmt.Fprintf(out, "%s\nUsername: %s\nAccount flags: %s\nAuthserver: %s\nSelected realm: %s\nAddress: %s\n",
+	_, err = fmt.Fprintf(out, "%s\nUsername: %s\nAccount flags: %s\nAuthserver: %s\nSelected realm: %s\nAddress: %s\n",
 		message, session.Username, account.FormatFlags(session.AccountFlags), address, selectedRealm, realmAddress)
 	return err
 }

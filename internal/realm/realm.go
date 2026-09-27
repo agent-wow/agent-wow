@@ -1,4 +1,4 @@
-// Package realm manages the client's persisted realm selection.
+// Package realm manages the client's local realm.json file.
 package realm
 
 import (
@@ -15,97 +15,69 @@ import (
 	"unicode/utf8"
 )
 
-// Selection is persisted in config_dir/realm.json. The authserver is supplied
-// by the main configuration.
-type Selection struct {
+// Realm is the on-disk realm.json format.
+type Realm struct {
 	ID      uint8  `json:"id"`
 	Name    string `json:"name"`
 	Address string `json:"address"`
 }
 
-var current struct {
-	configDir string
-	selection *Selection
-}
-
-// Init loads the selected realm from configDir. Call Init after
-// validating the main config, before using the realm selection.
-func Init(configDir string) error {
-	selection, err := load(filepath.Join(configDir, "realm.json"))
-	if err != nil {
-		return err
-	}
-	current.configDir = configDir
-	current.selection = selection
-	return nil
-}
-
-// Path returns the file used to save the selected realm.
-func Path() string { return filepath.Join(current.configDir, "realm.json") }
-
-// Get returns a copy of the selected realm, or nil when no realm is selected.
-func Get() *Selection {
-	if current.selection == nil {
-		return nil
-	}
-	selection := *current.selection
-	return &selection
-}
-
-func load(path string) (*Selection, error) {
+// Read loads and validates a realm file. A missing file can be detected with
+// errors.Is(err, os.ErrNotExist).
+func Read(path string) (Realm, error) {
+	var selection Realm
 	file, err := os.Open(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
 	if err != nil {
-		return nil, fmt.Errorf("read selected realm config: %w", err)
+		return selection, fmt.Errorf("read realm file: %w", err)
 	}
 	defer file.Close()
 	data, err := io.ReadAll(io.LimitReader(file, 65537))
 	if err != nil {
-		return nil, fmt.Errorf("read selected realm config: %w", err)
+		return selection, fmt.Errorf("read realm file %q: %w", path, err)
 	}
-	var realm Selection
-	if len(data) > 65536 || json.Unmarshal(data, &realm) != nil {
-		return nil, fmt.Errorf("invalid selected realm config %q", path)
+	if len(data) > 65536 {
+		return selection, fmt.Errorf("realm file %q is too large", path)
 	}
-	if err := realm.validate(); err != nil {
-		return nil, fmt.Errorf("invalid selected realm config %q: %w", path, err)
+	if err := json.Unmarshal(data, &selection); err != nil {
+		return Realm{}, fmt.Errorf("invalid realm file %q: expected a JSON object with id, name and address fields", path)
 	}
-	return &realm, nil
+	if err := selection.validate(); err != nil {
+		return Realm{}, fmt.Errorf("invalid realm file %q: %w", path, err)
+	}
+	return selection, nil
 }
 
-// Save atomically saves a selection and updates the loaded selection only
-// after the write succeeds. It leaves the main config and its overrides intact.
-func Save(realm Selection) error {
-	if err := realm.validate(); err != nil {
+// Write atomically creates or replaces a realm file with mode 0600.
+// New parent directories are created with mode 0700.
+func Write(path string, selection Realm) error {
+	if err := selection.validate(); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(current.configDir, 0700); err != nil {
-		return fmt.Errorf("create config directory: %w", err)
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("create realm directory %q: %w", dir, err)
 	}
-	file, err := os.CreateTemp(current.configDir, ".realm-*.tmp")
+	file, err := os.CreateTemp(dir, ".realm-*.tmp") // CreateTemp uses mode 0600.
 	if err != nil {
-		return fmt.Errorf("create selected realm config: %w", err)
+		return fmt.Errorf("create realm file in %q: %w", dir, err)
 	}
 	defer os.Remove(file.Name())
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(realm); err != nil {
+	if err := encoder.Encode(selection); err != nil {
 		_ = file.Close()
-		return fmt.Errorf("write selected realm config: %w", err)
+		return fmt.Errorf("write realm file %q: %w", path, err)
 	}
 	if err := file.Close(); err != nil {
-		return fmt.Errorf("close selected realm config: %w", err)
+		return fmt.Errorf("close realm file %q: %w", path, err)
 	}
-	if err := os.Rename(file.Name(), Path()); err != nil {
-		return fmt.Errorf("save selected realm config: %w", err)
+	if err := os.Rename(file.Name(), path); err != nil {
+		return fmt.Errorf("save realm file %q: %w", path, err)
 	}
-	current.selection = &realm
 	return nil
 }
 
-func (r Selection) validate() error {
+func (r Realm) validate() error {
 	if strings.TrimSpace(r.Name) == "" || !utf8.ValidString(r.Name) || strings.ContainsFunc(r.Name, unicode.IsControl) {
 		return errors.New("selected realm name must be nonempty UTF-8 without control characters")
 	}

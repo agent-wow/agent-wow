@@ -9,6 +9,7 @@ import (
 	"math"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -52,7 +53,7 @@ func TestRealmCommands(t *testing.T) {
 			if err := saveRealm(selected); err != nil {
 				t.Fatal(err)
 			}
-			before, err := os.ReadFile(realmstore.Path())
+			before, err := os.ReadFile(config.Get().RealmFilePath)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -75,7 +76,7 @@ func TestRealmCommands(t *testing.T) {
 				}
 			}
 			if tc.wantErr != "" || tc.args[0] != "set" {
-				after, err := os.ReadFile(realmstore.Path())
+				after, err := os.ReadFile(config.Get().RealmFilePath)
 				if err != nil || !bytes.Equal(after, before) {
 					t.Fatal("read or failed selection changed realm config")
 				}
@@ -83,7 +84,7 @@ func TestRealmCommands(t *testing.T) {
 			if err := config.Init(path); err != nil {
 				t.Fatal(err)
 			}
-			if got := realmstore.Get(); got == nil || got.ID != tc.wantID {
+			if got, err := realmstore.Read(config.Get().RealmFilePath); err != nil || got.ID != tc.wantID {
 				t.Fatalf("wrong persisted selection: %#v", got)
 			}
 			client, err := database.NewClient(config.Get().DataDir)
@@ -136,7 +137,7 @@ func TestRealmStaleSession(t *testing.T) {
 	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "auth login") {
 		t.Fatalf("expected stale session guidance, got %v", err)
 	}
-	if realmstore.Get() != nil {
+	if _, err := realmstore.Read(config.Get().RealmFilePath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("stale session saved a selection")
 	}
 }
@@ -182,12 +183,12 @@ func TestSelectLoginRealm(t *testing.T) {
 			if err := config.Init(path); err != nil {
 				t.Fatal(err)
 			}
-			got := realmstore.Get()
+			got, err := realmstore.Read(config.Get().RealmFilePath)
 			if tc.wantID == 0 {
-				if got != nil {
+				if !errors.Is(err, os.ErrNotExist) {
 					t.Fatal("saved an unavailable realm")
 				}
-			} else if got == nil || got.ID != tc.wantID {
+			} else if err != nil || got.ID != tc.wantID {
 				t.Fatalf("incorrect persisted selection: %#v", got)
 			}
 			if tc.selected == 4 && got.Address != "localhost:8088" {
@@ -204,6 +205,56 @@ func TestFindRealmAmbiguous(t *testing.T) {
 	}
 	if got, err := findRealm(realms, "2"); err != nil || got.ID != 2 {
 		t.Fatalf("failed ID disambiguation: %v", err)
+	}
+}
+
+func TestLoadSelectedRealm(t *testing.T) {
+	configPath := initTestConfig(t)
+	path := filepath.Join(t.TempDir(), "custom-realm.json")
+	t.Setenv("AGENT_WOW_REALM_FILE_PATH", path)
+	if err := config.Init(configPath); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := loadSelectedRealm(); got != nil || err != nil {
+		t.Fatalf("missing selection: got %v, %v", got, err)
+	}
+	for _, want := range []realmstore.Realm{
+		{ID: 1, Name: "First", Address: "localhost:8085"},
+		{ID: 2, Name: "Second", Address: "localhost:8086"},
+	} {
+		if err := realmstore.Write(path, want); err != nil {
+			t.Fatal(err)
+		}
+		got, err := loadSelectedRealm()
+		if err != nil || got == nil || *got != want {
+			t.Fatalf("did not read current selection from the configured path: %v", err)
+		}
+	}
+	if err := os.WriteFile(path, []byte("{"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// Loading application settings must not read realm files as a side effect.
+	if err := config.Init(configPath); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := loadSelectedRealm(); got != nil || err == nil {
+		t.Fatal("malformed realm file was treated as an absent selection")
+	}
+	if err := selectLoginRealm([]auth.Realm{{ID: 3, Name: "Available", Address: "localhost:8087"}}); err == nil {
+		t.Fatal("login ignored malformed realm file")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != "{" {
+		t.Fatal("login replaced malformed realm file")
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := loadSelectedRealm(); got != nil || err == nil || errors.Is(err, os.ErrNotExist) {
+		t.Fatal("realm file read error was treated as a missing selection")
 	}
 }
 

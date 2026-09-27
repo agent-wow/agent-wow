@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
 
+	"github.com/hazim-j/agent-wow/internal/config"
 	realmstore "github.com/hazim-j/agent-wow/internal/realm"
 	"github.com/hazim-j/agent-wow/pkg/auth"
 	realmtypes "github.com/hazim-j/agent-wow/pkg/realm"
@@ -38,7 +40,10 @@ func newRealmCommand() *cobra.Command {
 				_, err := fmt.Fprintln(cmd.OutOrStdout(), "No realms available.")
 				return err
 			}
-			selected := realmstore.Get()
+			selected, err := loadSelectedRealm()
+			if err != nil {
+				return err
+			}
 			out := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
 			fmt.Fprintln(out, "SELECTED\tID\tNAME\tTYPE\tSTATUS\tCHARACTERS\tPOPULATION\tADDRESS")
 			for _, realm := range realms {
@@ -74,7 +79,7 @@ func newRealmCommand() *cobra.Command {
 			if err := saveRealm(realm); err != nil {
 				return err
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Selected realm: %s (ID: %d)\nAddress: %s\nSaved to %s.\n", realm.Name, realm.ID, realm.Address, realmstore.Path())
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Selected realm: %s (ID: %d)\nAddress: %s\nSaved to %s.\n", realm.Name, realm.ID, realm.Address, config.Get().RealmFilePath)
 			return err
 		},
 	}, &cobra.Command{
@@ -86,7 +91,10 @@ func newRealmCommand() *cobra.Command {
 			if timeout <= 0 {
 				return errors.New("--timeout must be greater than zero")
 			}
-			selected := realmstore.Get()
+			selected, err := loadSelectedRealm()
+			if err != nil {
+				return err
+			}
 			if selected == nil {
 				return errors.New("no realm selected; run 'agent-wow auth login' or 'agent-wow realm set <id|name>'")
 			}
@@ -153,15 +161,29 @@ func findRealm(realms []auth.Realm, selector string) (auth.Realm, error) {
 }
 
 func saveRealm(realm auth.Realm) error {
-	return realmstore.Save(realmstore.Selection{
+	return realmstore.Write(config.Get().RealmFilePath, realmstore.Realm{
 		ID: realm.ID, Name: realm.Name, Address: realm.Address,
 	})
+}
+
+func loadSelectedRealm() (*realmstore.Realm, error) {
+	selected, err := realmstore.Read(config.Get().RealmFilePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &selected, nil
 }
 
 // selectLoginRealm keeps an existing choice, including when it is unavailable.
 // On first login, choose the first selectable realm in the server's list.
 func selectLoginRealm(realms []auth.Realm) error {
-	selected := realmstore.Get()
+	selected, err := loadSelectedRealm()
+	if err != nil {
+		return err
+	}
 	for _, realm := range realms {
 		if selected != nil && realm.ID != selected.ID {
 			continue

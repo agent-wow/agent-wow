@@ -2,160 +2,152 @@ package realm_test
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/hazim-j/agent-wow/internal/config"
 	"github.com/hazim-j/agent-wow/internal/realm"
 )
 
-func initRealmConfig(t *testing.T) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "settings.json")
-	if err := os.WriteFile(path, []byte(`{"authserver":{"host":"configured.example","port":9000}}`), 0600); err != nil {
+func TestRealmFile(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "config")
+	path := filepath.Join(dir, "realm.json")
+	want := realm.Realm{ID: 7, Name: "AzerothCore", Address: "127.0.0.1:8085"}
+	if err := realm.Write(path, want); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("AGENT_WOW_CONFIG_DIR", filepath.Join(t.TempDir(), "config"))
-	t.Setenv("AGENT_WOW_AUTHSERVER_HOST", "localhost")
-	t.Setenv("AGENT_WOW_AUTHSERVER_PORT", "3724")
-	if err := config.Init(path); err != nil {
+	got, err := realm.Read(path)
+	if err != nil || got != want {
+		t.Fatalf("selection did not round-trip: %v", err)
+	}
+	assertRealmStorageFields(t, path)
+	for path, mode := range map[string]os.FileMode{dir: 0700, path: 0600} {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != mode {
+			t.Errorf("%s has mode %o, want %o", path, info.Mode().Perm(), mode)
+		}
+	}
+	if err := os.Chmod(path, 0644); err != nil {
 		t.Fatal(err)
 	}
-	return path
-}
-
-func TestRealmPersistence(t *testing.T) {
-	path := initRealmConfig(t)
-	original, err := os.ReadFile(path)
-	if err != nil {
+	want.ID = 8
+	if err := realm.Write(path, want); err != nil {
 		t.Fatal(err)
 	}
-	want := realm.Selection{ID: 7, Name: "AzerothCore", Address: "127.0.0.1:8085"}
-	if err := realm.Save(want); err != nil {
-		t.Fatal(err)
+	got, err = realm.Read(path)
+	if err != nil || got != want {
+		t.Fatal("selection was not replaced")
 	}
-	if err := config.Init(path); err != nil {
-		t.Fatal(err)
-	}
-	got := realm.Get()
-	if got == nil || *got != want {
-		t.Fatalf("selection did not survive reload: %#v", got)
-	}
-	got.Name = "changed copy"
-	if realm.Get().Name != want.Name {
-		t.Fatal("Get returned mutable selection")
-	}
-	after, err := os.ReadFile(path)
-	if err != nil || string(after) != string(original) {
-		t.Fatal("selection changed main config")
-	}
-	info, err := os.Stat(realm.Path())
+	info, err := os.Stat(path)
 	if err != nil || info.Mode().Perm() != 0600 {
-		t.Fatal("realm file permissions are not 0600")
+		t.Fatal("replacement realm file is not private")
 	}
-	assertRealmStorageFields(t)
-	t.Setenv("AGENT_WOW_AUTHSERVER_HOST", "other.example")
-	if err := config.Init(path); err != nil {
+	files, err := os.ReadDir(dir)
+	if err != nil || len(files) != 1 {
+		t.Fatal("temporary realm files were left behind")
+	}
+	// Each call uses its explicit path, without shared initialization or state.
+	otherPath := filepath.Join(t.TempDir(), "other.json")
+	other := realm.Realm{ID: 1, Name: "Other", Address: "other.example:8085"}
+	if err := realm.Write(otherPath, other); err != nil {
 		t.Fatal(err)
 	}
-	if realm.Get() == nil || *realm.Get() != want {
-		t.Fatal("changing the configured authserver erased the selected realm")
+	got, err = realm.Read(path)
+	if err != nil || got != want {
+		t.Fatal("writing another path changed the first selection")
+	}
+	got, err = realm.Read(otherPath)
+	if err != nil || got != other {
+		t.Fatal("second path did not retain its selection")
 	}
 }
 
 func TestInvalidRealmPreservesSelection(t *testing.T) {
-	initRealmConfig(t)
-	want := realm.Selection{ID: 1, Name: "Original", Address: "localhost:8085"}
-	if err := realm.Save(want); err != nil {
+	path := filepath.Join(t.TempDir(), "realm.json")
+	want := realm.Realm{ID: 1, Name: "Original", Address: "localhost:8085"}
+	if err := realm.Write(path, want); err != nil {
 		t.Fatal(err)
 	}
-	for _, selection := range []realm.Selection{
+	for _, selection := range []realm.Realm{
 		{}, {ID: 2, Name: "Invalid\nName", Address: "localhost:8085"},
 		{ID: 2, Name: "Invalid Address", Address: "localhost:0"},
 	} {
-		before, err := os.ReadFile(realm.Path())
+		before, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := realm.Save(selection); err == nil {
+		if err := realm.Write(path, selection); err == nil {
 			t.Fatal("accepted invalid selection")
 		}
-		after, err := os.ReadFile(realm.Path())
-		if err != nil || string(before) != string(after) || *realm.Get() != want {
-			t.Fatal("invalid selection changed config")
+		after, err := os.ReadFile(path)
+		if err != nil || string(before) != string(after) {
+			t.Fatal("invalid selection changed the file")
 		}
 	}
 }
 
 func TestRealmWriteFailure(t *testing.T) {
-	initRealmConfig(t)
-	want := realm.Selection{ID: 1, Name: "Original", Address: "localhost:8085"}
-	if err := realm.Save(want); err != nil {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "realm.json")
+	if err := os.Mkdir(path, 0700); err != nil {
 		t.Fatal(err)
 	}
-	// Force the atomic rename to fail, even when tests run as root.
-	if err := os.Remove(realm.Path()); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(realm.Path(), 0700); err != nil {
-		t.Fatal(err)
-	}
-	next := want
-	next.ID = 2
-	if err := realm.Save(next); err == nil {
+	if err := realm.Write(path, realm.Realm{ID: 1, Name: "Realm", Address: "localhost:8085"}); err == nil {
 		t.Fatal("ignored failed rename")
 	}
-	if *realm.Get() != want {
-		t.Fatal("failed write changed loaded config")
-	}
-	matches, err := filepath.Glob(filepath.Join(config.Get().ConfigDir, ".realm-*.tmp"))
-	if err != nil || len(matches) != 0 {
+	files, err := os.ReadDir(dir)
+	if err != nil || len(files) != 1 {
 		t.Fatal("failed write left a temporary file")
 	}
 }
 
-func TestMalformedRealmConfig(t *testing.T) {
-	path := initRealmConfig(t)
-	if err := os.MkdirAll(config.Get().ConfigDir, 0700); err != nil {
-		t.Fatal(err)
+func TestInvalidRealmFiles(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "realm.json")
+	if _, err := realm.Read(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing-file error lost: %v", err)
 	}
-	for _, data := range []string{`{`, `null`, `{}`, `{"id":256,"name":"Bad"}`} {
-		if err := os.WriteFile(realm.Path(), []byte(data), 0600); err != nil {
+	for _, data := range []string{
+		`{`, `null`, `[]`, `{}`, `{"id":256,"name":"Bad"}`,
+		`{"id":7,"name":"Realm","address":123}`,
+		`{"id":7,"name":"Realm","address":"localhost:0"}`,
+		`{"id":7,"name":"Realm","address":"localhost:8085"} {}`,
+		strings.Repeat("x", 65537),
+	} {
+		if err := os.WriteFile(path, []byte(data), 0600); err != nil {
 			t.Fatal(err)
 		}
-		if err := config.Init(path); err == nil {
-			t.Fatalf("accepted malformed realm config %q", data)
+		got, err := realm.Read(path)
+		if err == nil || got != (realm.Realm{}) {
+			t.Fatal("accepted invalid realm file or returned partial selection")
 		}
 	}
 }
 
-func TestLegacyRealmConfig(t *testing.T) {
-	path := initRealmConfig(t)
-	if err := os.MkdirAll(config.Get().ConfigDir, 0700); err != nil {
-		t.Fatal(err)
-	}
+func TestLegacyRealmFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "realm.json")
 	data := []byte(`{"id":7,"name":"AzerothCore","address":"127.0.0.1:8085","authserver":"old.example:3724"}`)
-	if err := os.WriteFile(realm.Path(), data, 0600); err != nil {
+	if err := os.WriteFile(path, data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := config.Init(path); err != nil {
+	want := realm.Realm{ID: 7, Name: "AzerothCore", Address: "127.0.0.1:8085"}
+	got, err := realm.Read(path)
+	if err != nil || got != want {
+		t.Fatalf("legacy realm file did not load: %v", err)
+	}
+	if err := realm.Write(path, got); err != nil {
 		t.Fatal(err)
 	}
-	want := realm.Selection{ID: 7, Name: "AzerothCore", Address: "127.0.0.1:8085"}
-	got := realm.Get()
-	if got == nil || *got != want {
-		t.Fatal("legacy realm config did not load")
-	}
-	if err := realm.Save(*got); err != nil {
-		t.Fatal(err)
-	}
-	assertRealmStorageFields(t)
+	assertRealmStorageFields(t, path)
 }
 
-func assertRealmStorageFields(t *testing.T) {
+func assertRealmStorageFields(t *testing.T, path string) {
 	t.Helper()
-	data, err := os.ReadFile(realm.Path())
+	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,6 +156,6 @@ func assertRealmStorageFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(fields) != 3 || fields["id"] == nil || fields["name"] == nil || fields["address"] == nil {
-		t.Fatal("realm config must contain only id, name and address")
+		t.Fatal("realm file must contain only id, name and address")
 	}
 }

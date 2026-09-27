@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hazim-j/agent-wow/internal/realm"
 	"github.com/spf13/viper"
 )
 
@@ -20,10 +19,11 @@ type Server struct {
 
 // Config contains the settings shared by client packages.
 type Config struct {
-	ConfigDir    string `mapstructure:"config_dir"`
-	DataDir      string `mapstructure:"data_dir"`
-	AuthFilePath string `mapstructure:"auth_file_path"`
-	AuthServer   Server `mapstructure:"authserver"`
+	ConfigDir     string `mapstructure:"config_dir"`
+	DataDir       string `mapstructure:"data_dir"`
+	AuthFilePath  string `mapstructure:"auth_file_path"`
+	RealmFilePath string `mapstructure:"realm_file_path"`
+	AuthServer    Server `mapstructure:"authserver"`
 }
 
 var current Config
@@ -62,8 +62,9 @@ func Init(configFile string) error {
 		}
 	}
 
-	// Resolve this default after loading overrides so it follows ConfigDir.
+	// Resolve these defaults after loading overrides so they follow ConfigDir.
 	v.SetDefault("auth_file_path", filepath.Join(v.GetString("config_dir"), "auth.json"))
+	v.SetDefault("realm_file_path", filepath.Join(v.GetString("config_dir"), "realm.json"))
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return fmt.Errorf("decode config: %w", err)
@@ -77,10 +78,10 @@ func Init(configFile string) error {
 	if strings.TrimSpace(cfg.AuthFilePath) == "" {
 		return errors.New("auth_file_path must not be empty")
 	}
-	if err := validateServer("authserver", cfg.AuthServer); err != nil {
-		return err
+	if strings.TrimSpace(cfg.RealmFilePath) == "" {
+		return errors.New("realm_file_path must not be empty")
 	}
-	if err := realm.Init(cfg.ConfigDir); err != nil {
+	if err := validateServer("authserver", cfg.AuthServer); err != nil {
 		return err
 	}
 	current = cfg
