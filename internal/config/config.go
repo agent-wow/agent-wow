@@ -1,9 +1,11 @@
-// Package config provides the client's server connection settings.
+// Package config provides the client's storage and server connection settings.
 package config
 
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -17,8 +19,10 @@ type Server struct {
 
 // Config contains the settings shared by client packages.
 type Config struct {
-	AuthServer  Server `mapstructure:"authserver"`
-	WorldServer Server `mapstructure:"worldserver"`
+	DataDir      string `mapstructure:"data_dir"`
+	AuthFilePath string `mapstructure:"auth_file_path"`
+	AuthServer   Server `mapstructure:"authserver"`
+	WorldServer  Server `mapstructure:"worldserver"`
 }
 
 var current Config
@@ -30,7 +34,12 @@ var current Config
 // AGENT_WOW_WORLDSERVER_PORT. They take precedence over file settings.
 // Call Init before starting any other client components.
 func Init(configFile string) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("resolve home directory: %w", err)
+	}
 	v := viper.New()
+	v.SetDefault("data_dir", filepath.Join(homeDir, ".config", "agent-wow"))
 	v.SetDefault("authserver.host", "localhost")
 	v.SetDefault("authserver.port", 3724)
 	v.SetDefault("worldserver.host", "localhost")
@@ -53,9 +62,17 @@ func Init(configFile string) error {
 		}
 	}
 
+	// Resolve this default after loading overrides so it follows DataDir.
+	v.SetDefault("auth_file_path", filepath.Join(v.GetString("data_dir"), "auth.json"))
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return fmt.Errorf("decode config: %w", err)
+	}
+	if strings.TrimSpace(cfg.DataDir) == "" {
+		return errors.New("data_dir must not be empty")
+	}
+	if strings.TrimSpace(cfg.AuthFilePath) == "" {
+		return errors.New("auth_file_path must not be empty")
 	}
 	if err := validateServer("authserver", cfg.AuthServer); err != nil {
 		return err
