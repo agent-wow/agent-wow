@@ -8,6 +8,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/hazim-j/agent-wow/pkg/opcode"
 )
 
 type appearanceProfile struct {
@@ -210,7 +212,7 @@ func (c *Client) Create(ctx context.Context, options CreateOptions) (CreateResul
 			a := result.Appearance
 			body := append([]byte(result.Name), 0)
 			body = append(body, byte(result.Race), byte(result.Class), byte(result.Gender), a.Skin, a.Face, a.HairStyle, a.HairColor, a.FacialHair, 0)
-			err = c.mutate("create", cmsgCharCreate, smsgCharCreate, 0x2f, body, result.Name, 0)
+			err = c.mutate("create", opcode.CMSGCharCreate, opcode.SMSGCharCreate, 0x2f, body, result.Name, 0)
 			if err == nil {
 				return nil
 			}

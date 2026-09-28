@@ -13,6 +13,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/hazim-j/agent-wow/pkg/opcode"
 )
 
 const (
@@ -66,7 +68,7 @@ func (c *Client) ListRealms(ctx context.Context, session *Session) ([]Realm, err
 	var realms []Realm
 	err := c.withSession(ctx, session, func(conn net.Conn) error {
 		// REALM_LIST opcode followed by four reserved bytes.
-		if _, err := io.Copy(conn, bytes.NewReader([]byte{0x10, 0, 0, 0, 0})); err != nil {
+		if _, err := io.Copy(conn, bytes.NewReader([]byte{opcode.AuthRealmList, 0, 0, 0, 0})); err != nil {
 			return fmt.Errorf("send realm list request: %w", err)
 		}
 		var err error
@@ -86,7 +88,7 @@ func readRealms(r io.Reader) ([]Realm, error) {
 	if _, err := io.ReadFull(r, header[:]); err != nil {
 		return nil, fmt.Errorf("read realm list header: %w", err)
 	}
-	if header[0] != 0x10 {
+	if header[0] != opcode.AuthRealmList {
 		return nil, fmt.Errorf("unexpected realm list opcode 0x%02x", header[0])
 	}
 	// The uint16 length bounds the allocation and all NUL-terminated strings.

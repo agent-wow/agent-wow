@@ -18,11 +18,13 @@ import (
 	"time"
 
 	"github.com/hazim-j/agent-wow/pkg/auth"
+	"github.com/hazim-j/agent-wow/pkg/worldconn"
 )
 
 type realmPeer struct {
-	conn       net.Conn
-	send, recv *rc4.Cipher
+	conn         net.Conn
+	send, recv   *rc4.Cipher
+	beforeAuthOK func() error
 }
 
 func (p *realmPeer) read() (uint32, []byte, error) {
@@ -100,10 +102,15 @@ func (p *realmPeer) authenticate(session *auth.Session, queued bool) error {
 	if !bytes.Equal(h.Sum(nil), tail[28:48]) {
 		return errors.New("wrong world authentication proof")
 	}
-	p.send, p.recv = headerCipher(session.Key, false), headerCipher(session.Key, true)
-	if err := p.write(0x2e6, []byte{1, 2, 3}); err != nil {
+	p.send, p.recv = worldconn.HeaderCipher(session.Key, false), worldconn.HeaderCipher(session.Key, true)
+	if err := p.write(0x209, []byte{1, 2, 3}); err != nil {
 		return err
-	} // Interleaved Warden module.
+	} // Interleaved unrelated startup packet.
+	if p.beforeAuthOK != nil {
+		if err := p.beforeAuthOK(); err != nil {
+			return err
+		}
+	}
 	response := make([]byte, 11)
 	response[0], response[10] = 0x0c, 2
 	if queued {
@@ -436,7 +443,7 @@ func TestHeaderCipherVectors(t *testing.T) {
 	// Independent Python HMAC-SHA1 + RC4 implementation, key bytes 0..39,
 	// zero plaintext after discarding the first 1024 stream bytes.
 	for sending, want := range map[bool]string{true: "e65788e6a6ce478550d66e87b5c31ede4a5737a122f9ad1a", false: "da4770c4efd0bceb7173cb145169e13d03a7c1d1c8813006"} {
-		cipher := headerCipher(testSession().Key, sending)
+		cipher := worldconn.HeaderCipher(testSession().Key, sending)
 		var got [24]byte
 		cipher.XORKeyStream(got[:7], got[:7])
 		cipher.XORKeyStream(got[7:], got[7:])
@@ -469,7 +476,7 @@ func TestAuthenticationFailures(t *testing.T) {
 					if _, err := p.expect(0x1ed); err != nil {
 						return err
 					}
-					p.send = headerCipher(session.Key, false)
+					p.send = worldconn.HeaderCipher(session.Key, false)
 				}
 				return p.write(0x1ee, tc.body)
 			})
@@ -497,7 +504,7 @@ func TestPacketBoundsAndDeadline(t *testing.T) {
 		{0x80, 0},             // truncated extended header
 	} {
 		left, right := net.Pipe()
-		c := &Client{conn: left}
+		c := &Client{wire: worldconn.New(left)}
 		done := make(chan struct{})
 		go func() { defer close(done); defer right.Close(); _, _ = right.Write(header) }()
 		if _, _, err := c.readPacket(); err == nil {
@@ -509,7 +516,7 @@ func TestPacketBoundsAndDeadline(t *testing.T) {
 	left, right := net.Pipe()
 	defer left.Close()
 	defer right.Close()
-	c := &Client{conn: left}
+	c := &Client{wire: worldconn.New(left)}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 	_, err := c.List(ctx)
@@ -517,48 +524,6 @@ func TestPacketBoundsAndDeadline(t *testing.T) {
 		t.Fatal("lost deadline cause", err)
 	}
 }
-
-func TestExtendedHeadersAndPartialWrites(t *testing.T) {
-	left, right := net.Pipe()
-	defer left.Close()
-	defer right.Close()
-	c := &Client{conn: left, recv: headerCipher(testSession().Key, false)}
-	p := &realmPeer{conn: right, send: headerCipher(testSession().Key, false)}
-	done := make(chan error, 1)
-	go func() {
-		if err := p.write(0x03b, bytes.Repeat([]byte{42}, 0x8000)); err != nil {
-			done <- err
-			return
-		}
-		done <- p.write(0x03a, []byte{0x2f})
-	}()
-	for _, size := range []int{0x8000, 1} {
-		_, body, err := c.readPacket()
-		if err != nil || len(body) != size {
-			t.Fatal(len(body), err)
-		}
-	}
-	if err := <-done; err != nil {
-		t.Fatal(err)
-	}
-	recorder := &shortWriteConn{}
-	c = &Client{conn: recorder}
-	if sent, err := c.writePacket(0x038, []byte{1, 2}); err != nil || !sent {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(recorder.Bytes(), []byte{0, 6, 0x38, 0, 0, 0, 1, 2}) {
-		t.Fatal("short writes lost bytes", recorder.Bytes())
-	}
-}
-
-type shortWriteConn struct {
-	net.Conn
-	bytes.Buffer
-}
-
-func (c *shortWriteConn) Read(p []byte) (int, error) { return c.Buffer.Read(p) }
-
-func (c *shortWriteConn) Write(p []byte) (int, error) { return c.Buffer.Write(p[:1]) }
 
 func TestCharacterDecoder(t *testing.T) {
 	fixture := characterFixture(t)

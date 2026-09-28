@@ -34,12 +34,13 @@ var dbcSources = []source{
 
 var archiveSource = source{"Data.zip", "a3d4df635ae6c2c8f08052c32a79e0f806955150ad36b014a823dd08a32a4610"}
 var classesSource = source{"playercreateinfo.sql", "0d74fddfeaac43fc07da188d1b6244a30088ca01b4d598d4ca7d317f619fdeac"}
+var opcodesSource = source{"Opcodes.h", clientdata.OpcodesSHA256}
 
 const maxReferenceSize = 16 << 20
 
 func main() {
 	if len(os.Args) == 2 && (os.Args[1] == "--help" || os.Args[1] == "-h") {
-		fmt.Println("Usage: ./run client-data:fetch\nDownloads the v20.0 client archive (~1.2 GB) and pinned creation reference to tmp/client-data.")
+		fmt.Println("Usage: ./run client-data:fetch\nDownloads the v20.0 client archive (~1.2 GB) and pinned creation and opcode references to tmp/client-data.")
 		return
 	}
 	if len(os.Args) != 1 {
@@ -68,7 +69,10 @@ func fetch(ctx context.Context, client *http.Client, directory string, out io.Wr
 	if err := download(ctx, client, clientdata.ClassesURL, directory, classesSource, maxReferenceSize, out); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "Client data ready in %s. Run './run charcatalog:generate' or './run mapcatalog:generate'.\n", directory)
+	if err := download(ctx, client, clientdata.OpcodesURL, directory, opcodesSource, maxReferenceSize, out); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "Client data ready in %s. Run './run charcatalog:generate', './run mapcatalog:generate', or './run opcodecatalog:generate'.\n", directory)
 	return nil
 }
 
