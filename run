@@ -13,6 +13,7 @@ Usage: ./run build [go build flags]
        ./run client-data:fetch
        ./run charcatalog:generate
        ./run mapcatalog:generate
+       ./run opcodecatalog:generate
 
 Examples:
   ./run build
@@ -23,6 +24,7 @@ Examples:
   ./run client-data:fetch
   ./run charcatalog:generate
   ./run mapcatalog:generate
+  ./run opcodecatalog:generate
 EOF
 }
 
@@ -59,7 +61,7 @@ case "${1:-}" in
         fi
         exec go run ./tools/clientdata
         ;;
-    charcatalog:generate|mapcatalog:generate)
+    charcatalog:generate|mapcatalog:generate|opcodecatalog:generate)
         generator="${1%:generate}"
         shift
         if [ "$#" -ne 0 ]; then

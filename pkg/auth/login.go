@@ -11,6 +11,8 @@ import (
 	"net"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/hazim-j/agent-wow/pkg/opcode"
 )
 
 // Login performs a challenge/proof exchange and verifies the server's
@@ -60,7 +62,7 @@ func exchange(conn net.Conn, username, password string) (*Session, error) {
 		return nil, fmt.Errorf("create logon proof: %w", err)
 	}
 	packet = make([]byte, 75)
-	packet[0] = 1 // AUTH_LOGON_PROOF
+	packet[0] = opcode.AuthLogonProof
 	copy(packet[1:33], p.public[:])
 	copy(packet[33:53], p.client[:])
 	// CRC/version proof, key count and security flags are zero. Custom client
@@ -72,7 +74,7 @@ func exchange(conn net.Conn, username, password string) (*Session, error) {
 	if _, err := io.ReadFull(conn, header[:]); err != nil {
 		return nil, fmt.Errorf("read logon proof result: %w", err)
 	}
-	if header[0] != 1 {
+	if header[0] != opcode.AuthLogonProof {
 		return nil, fmt.Errorf("unexpected logon proof opcode 0x%02x", header[0])
 	}
 	if header[1] != 0 {
@@ -90,6 +92,7 @@ func exchange(conn net.Conn, username, password string) (*Session, error) {
 
 func logonChallenge(username string) []byte {
 	packet := make([]byte, 34+len(username))
+	packet[0] = opcode.AuthLogonChallenge
 	packet[1] = 8
 	binary.LittleEndian.PutUint16(packet[2:4], uint16(len(packet)-4))
 	copy(packet[4:8], "WoW\x00")
@@ -109,7 +112,7 @@ func readChallenge(r io.Reader) (challenge, error) {
 	if _, err := io.ReadFull(r, header[:]); err != nil {
 		return c, err
 	}
-	if header[0] != 0 {
+	if header[0] != opcode.AuthLogonChallenge {
 		return c, fmt.Errorf("unexpected opcode 0x%02x", header[0])
 	}
 	if header[2] != 0 {

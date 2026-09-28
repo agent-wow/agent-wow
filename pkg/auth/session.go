@@ -10,6 +10,8 @@ import (
 	"net"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/hazim-j/agent-wow/pkg/opcode"
 )
 
 // Session holds the verified credentials for a subsequent worldserver login.
@@ -60,14 +62,14 @@ func (c *Client) withSession(ctx context.Context, session *Session, request func
 func reconnect(conn net.Conn, session *Session) error {
 	username := upperLatin(session.Username)
 	packet := logonChallenge(username)
-	packet[0] = 2 // AUTH_RECONNECT_CHALLENGE
+	packet[0] = opcode.AuthReconnectChallenge
 	if address, ok := conn.LocalAddr().(*net.TCPAddr); ok {
 		copy(packet[29:33], address.IP.To4())
 	}
 	if _, err := io.Copy(conn, bytes.NewReader(packet)); err != nil {
 		return fmt.Errorf("send reconnect challenge: %w", err)
 	}
-	if err := readReconnectResult(conn, 2); err != nil {
+	if err := readReconnectResult(conn, opcode.AuthReconnectChallenge); err != nil {
 		return fmt.Errorf("reconnect challenge: %w", err)
 	}
 	var challenge [32]byte // Server nonce followed by the version challenge.
@@ -83,14 +85,14 @@ func reconnect(conn net.Conn, session *Session) error {
 	var zeros [20]byte
 	version := digest(nonce[:], zeros[:])
 	packet = make([]byte, 58)
-	packet[0] = 3 // AUTH_RECONNECT_PROOF
+	packet[0] = opcode.AuthReconnectProof
 	copy(packet[1:17], nonce[:])
 	copy(packet[17:37], proof[:])
 	copy(packet[37:57], version[:])
 	if _, err := io.Copy(conn, bytes.NewReader(packet)); err != nil {
 		return fmt.Errorf("send reconnect proof: %w", err)
 	}
-	if err := readReconnectResult(conn, 3); err != nil {
+	if err := readReconnectResult(conn, opcode.AuthReconnectProof); err != nil {
 		// AzerothCore closes the socket without a result when the key is stale.
 		return fmt.Errorf("reconnect proof was not accepted (the saved session may be invalid): %w", err)
 	}

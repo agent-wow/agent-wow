@@ -10,11 +10,13 @@ import (
 )
 
 const (
-	Directory    = "tmp/client-data"
-	ReleaseURL   = "https://github.com/wowgaming/client-data/releases/tag/v20.0"
-	ArchiveURL   = "https://github.com/wowgaming/client-data/releases/download/v20.0/Data.zip"
-	CoreRevision = "d80ce1d87720e6b6a0b9adc952f21a658b1c245e"
-	ClassesURL   = "https://raw.githubusercontent.com/azerothcore/azerothcore-wotlk/" + CoreRevision + "/data/sql/base/db_world/playercreateinfo.sql"
+	Directory     = "tmp/client-data"
+	ReleaseURL    = "https://github.com/wowgaming/client-data/releases/tag/v20.0"
+	ArchiveURL    = "https://github.com/wowgaming/client-data/releases/download/v20.0/Data.zip"
+	CoreRevision  = "d80ce1d87720e6b6a0b9adc952f21a658b1c245e"
+	ClassesURL    = "https://raw.githubusercontent.com/azerothcore/azerothcore-wotlk/" + CoreRevision + "/data/sql/base/db_world/playercreateinfo.sql"
+	OpcodesURL    = "https://raw.githubusercontent.com/azerothcore/azerothcore-wotlk/" + CoreRevision + "/src/server/game/Server/Protocol/Opcodes.h"
+	OpcodesSHA256 = "9109ea4d2abd098883acd1e6b552104adf8965544478439811c75426315aa447"
 )
 
 // Read reads a local reference file, explaining how to fetch missing data.

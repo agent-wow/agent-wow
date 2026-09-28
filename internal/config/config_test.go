@@ -1,11 +1,92 @@
 package config
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestLogLevelConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name, body, envLevel string
+		want                 slog.Level
+		wantErr              bool
+	}{
+		{name: "default info", body: "{}", want: slog.LevelInfo},
+		{name: "debug in file", body: `{"log_level":"debug"}`, want: slog.LevelDebug},
+		{name: "case insensitive", body: `{"log_level":"WARN"}`, want: slog.LevelWarn},
+		{name: "environment overrides file", body: `{"log_level":"debug"}`, envLevel: "error", want: slog.LevelError},
+		{name: "environment overrides default", body: "{}", envLevel: "debug", want: slog.LevelDebug},
+		{name: "invalid file", body: `{"log_level":"verbose"}`, wantErr: true},
+		{name: "empty file level", body: `{"log_level":""}`, wantErr: true},
+		{name: "invalid environment", body: "{}", envLevel: "invalid", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("AGENT_WOW_LOG_LEVEL", tc.envLevel)
+			path := filepath.Join(t.TempDir(), "config.json")
+			if err := os.WriteFile(path, []byte(tc.body), 0600); err != nil {
+				t.Fatal(err)
+			}
+			err := Init(path)
+			if tc.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "log_level") {
+					t.Fatalf("expected log_level error, got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := Get().LogLevel; got != tc.want {
+				t.Fatalf("LogLevel=%s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestWorldRPCConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name, body, envHost, envPort string
+		want                         Server
+		wantErr                      string
+	}{
+		{name: "defaults", body: "{}", want: Server{Host: "localhost", Port: 8086}},
+		{name: "file settings", body: `{"worldrpc":{"host":"127.0.0.1","port":9001}}`, want: Server{Host: "127.0.0.1", Port: 9001}},
+		{name: "host only", body: `{"worldrpc":{"host":"::1"}}`, want: Server{Host: "::1", Port: 8086}},
+		{name: "port only", body: `{"worldrpc":{"port":9002}}`, want: Server{Host: "localhost", Port: 9002}},
+		{name: "environment overrides file", body: `{"worldrpc":{"host":"127.0.0.1","port":9001}}`, envHost: "::1", envPort: "9003", want: Server{Host: "::1", Port: 9003}},
+		{name: "environment overrides defaults", body: "{}", envHost: "127.0.0.1", envPort: "9004", want: Server{Host: "127.0.0.1", Port: 9004}},
+		{name: "empty host", body: `{"worldrpc":{"host":""}}`, wantErr: "worldrpc.host must not be empty"},
+		{name: "zero port", body: `{"worldrpc":{"port":0}}`, wantErr: "worldrpc.port must be between 1 and 65535"},
+		{name: "negative port", body: `{"worldrpc":{"port":-1}}`, wantErr: "worldrpc.port must be between 1 and 65535"},
+		{name: "oversized port", body: `{"worldrpc":{"port":65536}}`, wantErr: "worldrpc.port must be between 1 and 65535"},
+		{name: "invalid environment port", body: "{}", envPort: "65536", wantErr: "worldrpc.port must be between 1 and 65535"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("AGENT_WOW_WORLDRPC_HOST", tc.envHost)
+			t.Setenv("AGENT_WOW_WORLDRPC_PORT", tc.envPort)
+			path := filepath.Join(t.TempDir(), "config.json")
+			if err := os.WriteFile(path, []byte(tc.body), 0600); err != nil {
+				t.Fatal(err)
+			}
+			err := Init(path)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected %q, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := Get().WorldRPC; got != tc.want {
+				t.Fatalf("WorldRPC=%+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
 
 func TestStoragePaths(t *testing.T) {
 	homeDir, err := os.UserHomeDir()

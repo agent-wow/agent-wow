@@ -1,6 +1,11 @@
 config_dir: ./config
 data_dir: ./data
+log_level: debug
 
 # authserver:
 #   host: localhost
 #   port: 3724
+
+# worldrpc:
+#   host: localhost
+#   port: 8086

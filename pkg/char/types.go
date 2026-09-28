@@ -1,5 +1,5 @@
 // Package char implements WoW 3.3.5a (build 12340) character selection and
-// management. It uses the public realm protocol and never enters the world.
+// management, with an explicit handoff to a persistent gameplay session.
 package char
 
 import (

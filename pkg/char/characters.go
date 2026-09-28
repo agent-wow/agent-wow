@@ -11,6 +11,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/hazim-j/agent-wow/pkg/opcode"
 )
 
 func (c *Client) List(ctx context.Context) ([]Character, error) {
@@ -27,10 +29,10 @@ func (c *Client) List(ctx context.Context) ([]Character, error) {
 }
 
 func (c *Client) list() ([]Character, error) {
-	if _, err := c.writePacket(cmsgCharEnum, nil); err != nil {
+	if _, err := c.writePacket(opcode.CMSGCharEnum, nil); err != nil {
 		return nil, err
 	}
-	body, err := c.waitPacket(smsgCharEnum)
+	body, err := c.waitPacket(opcode.SMSGCharEnum)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +109,7 @@ func (c *Client) Delete(ctx context.Context, guid GUID) error {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			return c.mutate("delete", cmsgCharDelete, smsgCharDelete, 0x47, binary.LittleEndian.AppendUint64(nil, uint64(guid)), "", guid)
+			return c.mutate("delete", opcode.CMSGCharDelete, opcode.SMSGCharDelete, 0x47, binary.LittleEndian.AppendUint64(nil, uint64(guid)), "", guid)
 		}
 		return fmt.Errorf("character GUID %d is not in this account's current character list", guid)
 	})
