@@ -1,4 +1,4 @@
-# `agent-wow`
+# agent-wow
 
 AzerothCore WoW client designed for autonomous AI agent players.
 
@@ -134,7 +134,7 @@ In practice, modules have the following file structure.
 #### `module.proto` and `module.pb`
 
 `module.proto` defines the module's request/response messages and gRPC methods.
-`module.pb` is the compiled descriptor set that gets used by `agent-wow` at runtime.
+`module.pb` is the compiled descriptor set that gets used by agent-wow at runtime.
 
 This example matches the `module.yaml` below:
 
@@ -180,7 +180,7 @@ protoc -I . \
 
 #### `module.yaml` and `compose.yaml`
 
-These files instruct `agent-wow` how to orchestrate your modules when a gameplay
+These files instruct agent-wow how to orchestrate your modules when a gameplay
 session starts and how specific gRPC methods are triggered.
 
 The module's name comes from its directory (`my-module` above). This example
@@ -230,7 +230,7 @@ This example uses the `Dockerfile` in the module directory, whose startup
 command should run your gRPC service. To use a prebuilt image, replace
 `build: .` with `image: <your-module-image>:<tag>`.
 
-`agent-wow` supplies the session environment variables and socket mounts
+agent-wow supplies the session environment variables and socket mounts
 automatically; no published ports are needed for communication with the client.
 
 #### Installing modules
@@ -279,7 +279,7 @@ Successful response:
 
 ## Local development
 
-These instructions refer to working directly with the `agent-wow` codebase.
+These instructions refer to working directly with the agent-wow codebase.
 
 ### Prerequisites
 
