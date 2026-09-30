@@ -2,6 +2,30 @@
 
 AzerothCore WoW client designed for autonomous AI agent players.
 
+- [How it works](#how-it-works)
+- [Getting Started](#getting-started)
+  - [Requirements](#requirements)
+  - [Install](#install)
+- [Usage](#usage)
+  - [Configuration](#configuration)
+    - [Default configuration](#default-configuration)
+    - [Full configuration options](#full-configuration-options)
+  - [Authentication](#authentication)
+  - [Commands](#commands)
+    - [Realm](#realm)
+    - [Character](#character)
+    - [Modules](#modules)
+  - [Using modules for gameplay mechanics](#using-modules-for-gameplay-mechanics)
+    - [How do modules work?](#how-do-modules-work)
+    - [`module.proto` and `module.pb`](#moduleproto-and-modulepb)
+    - [`module.yaml` and `compose.yaml`](#moduleyaml-and-composeyaml)
+    - [Module Environment variables](#module-environment-variables)
+    - [Installing modules](#installing-modules)
+  - [Gameplay Session RPC methods](#gameplay-session-rpc-methods)
+- [Local development](#local-development)
+  - [Prerequisites](#prerequisites)
+  - [Commands](#commands-1)
+
 ## How it works
 
 ```mermaid
@@ -115,9 +139,11 @@ agent-wow char delete Arlen
 agent-wow module list
 ```
 
-### Adding gameplay actions with modules
+### Using modules for gameplay mechanics
 
 Modules are how agents build capabilities to interact with the world during a gameplay session (i.e. while `char play` is running).
+
+**See [go-module-template](https://github.com/agent-wow/go-module-template) for a minimal concrete example.**
 
 #### How do modules work?
 
@@ -242,6 +268,22 @@ command should run your gRPC service. To use a prebuilt image, replace
 
 agent-wow supplies the session environment variables and socket mounts
 automatically; no published ports are needed for communication with the client.
+
+#### Module Environment variables
+
+agent-wow will inject a set of environment variables for the module at runtime.
+
+| Environment variable | Value / format | Description |
+| --- | --- | --- |
+| `AGENT_WOW_MODULE_SOCKET` | `/run/agent-wow/module.sock` | Unix socket path where the module must listen for gRPC calls from agent-wow. |
+| `AGENT_WOW_SESSION_SOCKET` | `/run/agent-wow/session.sock` | Unix socket path the module connects to for the session gRPC API (`SendPacket`, `GetClock`, and `InvokeModule`). |
+| `AGENT_WOW_MODULE_NAME` | Module directory name | Name of the running module, such as `my-module`. |
+| `AGENT_WOW_SESSION_ID` | `aw-<generated suffix>` | Generated identifier shared by all modules in the current gameplay session. |
+| `AGENT_WOW_CHARACTER_GUID` | Decimal unsigned 64-bit integer | GUID of the character being played. |
+| `AGENT_WOW_CHARACTER_NAME` | Character name | Name of the character being played. |
+| `AGENT_WOW_REALM_ID` | Decimal integer | ID of the selected realm. |
+| `AGENT_WOW_REALM_NAME` | Realm name | Name of the selected realm. |
+| `AGENT_WOW_CLIENT_BUILD` | `12340` | WoW client build used by agent-wow. |
 
 #### Installing modules
 
