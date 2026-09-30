@@ -24,7 +24,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/hazim-j/agent-wow/tools/internal/clientdata"
+	"github.com/agent-wow/agent-wow/tools/internal/clientdata"
 )
 
 const destination = "pkg/char/profiles_gen.go"

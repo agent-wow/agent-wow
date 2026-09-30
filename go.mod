@@ -1,4 +1,4 @@
-module github.com/hazim-j/agent-wow
+module github.com/agent-wow/agent-wow
 
 go 1.27.1
 

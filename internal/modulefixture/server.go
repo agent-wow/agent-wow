@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	fixturev1 "github.com/hazim-j/agent-wow/internal/modulefixture/api"
-	"github.com/hazim-j/agent-wow/pkg/modules/v1"
+	fixturev1 "github.com/agent-wow/agent-wow/internal/modulefixture/api"
+	"github.com/agent-wow/agent-wow/pkg/modules/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"

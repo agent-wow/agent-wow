@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/agent-wow/agent-wow/pkg/auth"
 	"github.com/dgraph-io/badger/v4"
-	"github.com/hazim-j/agent-wow/pkg/auth"
 )
 
 func TestSessionPersistence(t *testing.T) {

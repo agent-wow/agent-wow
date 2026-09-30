@@ -18,7 +18,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/hazim-j/agent-wow/tools/internal/clientdata"
+	"github.com/agent-wow/agent-wow/tools/internal/clientdata"
 )
 
 const destination = "pkg/maps/labels_gen.go"

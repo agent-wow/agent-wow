@@ -3,7 +3,7 @@ package char
 import (
 	"errors"
 
-	"github.com/hazim-j/agent-wow/pkg/opcode"
+	"github.com/agent-wow/agent-wow/pkg/opcode"
 )
 
 func (c *Client) readPacket() (uint16, []byte, error) { return c.wire.ReadPacket() }

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hazim-j/agent-wow/pkg/auth"
-	"github.com/hazim-j/agent-wow/pkg/worldconn"
+	"github.com/agent-wow/agent-wow/pkg/auth"
+	"github.com/agent-wow/agent-wow/pkg/worldconn"
 )
 
 // Client owns an authenticated character-selection connection. Operations must

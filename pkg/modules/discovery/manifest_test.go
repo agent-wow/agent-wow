@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hazim-j/agent-wow/pkg/modules/internal/testutil"
+	"github.com/agent-wow/agent-wow/pkg/modules/internal/testutil"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hazim-j/agent-wow/internal/config"
+	"github.com/agent-wow/agent-wow/internal/config"
 	"github.com/spf13/cobra"
 )
 

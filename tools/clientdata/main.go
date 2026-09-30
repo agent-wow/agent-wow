@@ -17,7 +17,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/hazim-j/agent-wow/tools/internal/clientdata"
+	"github.com/agent-wow/agent-wow/tools/internal/clientdata"
 )
 
 type source struct {

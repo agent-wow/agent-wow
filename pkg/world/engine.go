@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hazim-j/agent-wow/pkg/opcode"
+	"github.com/agent-wow/agent-wow/pkg/opcode"
 	"google.golang.org/grpc/status"
 )
 

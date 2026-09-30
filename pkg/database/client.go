@@ -9,8 +9,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/agent-wow/agent-wow/pkg/auth"
 	"github.com/dgraph-io/badger/v4"
-	"github.com/hazim-j/agent-wow/pkg/auth"
 )
 
 // ErrSessionNotFound indicates that no session has been saved.

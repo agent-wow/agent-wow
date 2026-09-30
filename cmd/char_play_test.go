@@ -17,11 +17,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hazim-j/agent-wow/internal/config"
-	"github.com/hazim-j/agent-wow/pkg/auth"
-	"github.com/hazim-j/agent-wow/pkg/modules/runtime"
-	"github.com/hazim-j/agent-wow/pkg/world"
-	"github.com/hazim-j/agent-wow/pkg/worldrpc"
+	"github.com/agent-wow/agent-wow/internal/config"
+	"github.com/agent-wow/agent-wow/pkg/auth"
+	"github.com/agent-wow/agent-wow/pkg/modules/runtime"
+	"github.com/agent-wow/agent-wow/pkg/world"
+	"github.com/agent-wow/agent-wow/pkg/worldrpc"
 )
 
 type fakePlaySession struct {

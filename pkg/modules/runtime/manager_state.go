@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hazim-j/agent-wow/pkg/modules/discovery"
-	"github.com/hazim-j/agent-wow/pkg/modules/runner"
-	"github.com/hazim-j/agent-wow/pkg/modules/session"
-	"github.com/hazim-j/agent-wow/pkg/modules/v1"
+	"github.com/agent-wow/agent-wow/pkg/modules/discovery"
+	"github.com/agent-wow/agent-wow/pkg/modules/runner"
+	"github.com/agent-wow/agent-wow/pkg/modules/session"
+	"github.com/agent-wow/agent-wow/pkg/modules/v1"
 	"google.golang.org/grpc"
 )
 

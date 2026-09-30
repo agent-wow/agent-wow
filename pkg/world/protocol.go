@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/hazim-j/agent-wow/pkg/opcode"
+	"github.com/agent-wow/agent-wow/pkg/opcode"
 )
 
 // The core handles connection lifecycle packets only. Gameplay payloads remain

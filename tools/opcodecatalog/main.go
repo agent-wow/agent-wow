@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hazim-j/agent-wow/tools/internal/clientdata"
+	"github.com/agent-wow/agent-wow/tools/internal/clientdata"
 )
 
 type entry struct {

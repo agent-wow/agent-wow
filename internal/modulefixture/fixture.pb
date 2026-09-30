@@ -10,7 +10,7 @@
 EmptyB}
 com.google.protobufB
 EmptyProtoPZ.google.golang.org/protobuf/types/known/emptypbø¢GPBªGoogle.Protobuf.WellKnownTypesbproto3
-¥
+§
 api/module/v1/session.protoagentwow.module.v1google/protobuf/any.protogoogle/protobuf/empty.proto"?
 WorldPacket
 opcode (Ropcode
@@ -30,8 +30,8 @@ EmptyProtoPZ.google.golang.org/protobuf/types/known/emptypbø¢GPBªGoogle.P
 
 SendPacket%.agentwow.module.v1.SendPacketRequest.google.protobuf.EmptyE
 GetClock.google.protobuf.Empty!.agentwow.module.v1.ClockResponsea
-InvokeModule'.agentwow.module.v1.InvokeModuleRequest(.agentwow.module.v1.InvokeModuleResponseB3Z1github.com/hazim-j/agent-wow/pkg/modules/v1;modv1bproto3
- 
+InvokeModule'.agentwow.module.v1.InvokeModuleRequest(.agentwow.module.v1.InvokeModuleResponseB5Z3github.com/agent-wow/agent-wow/pkg/modules/v1;modv1bproto3
+¢
 $internal/modulefixture/fixture.protoagentwow.fixture.v1api/module/v1/session.protogoogle/protobuf/empty.proto"ˆ
 Request
 number (Rnumber
@@ -47,4 +47,4 @@ $internal/modulefixture/fixture.protoagentwow.fixture.v1api/module/v1/sessio
 FixtureD
 Execute.agentwow.fixture.v1.Request.agentwow.fixture.v1.ResultC
 OnPacket.agentwow.module.v1.WorldPacket.google.protobuf.Empty>
-BeforeLogout.google.protobuf.Empty.google.protobuf.EmptyBCZAgithub.com/hazim-j/agent-wow/internal/modulefixture/api;fixturev1bproto3
+BeforeLogout.google.protobuf.Empty.google.protobuf.EmptyBEZCgithub.com/agent-wow/agent-wow/internal/modulefixture/api;fixturev1bproto3

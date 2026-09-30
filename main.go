@@ -1,6 +1,6 @@
 package main
 
-import "github.com/hazim-j/agent-wow/cmd"
+import "github.com/agent-wow/agent-wow/cmd"
 
 func main() {
 	cmd.Execute()

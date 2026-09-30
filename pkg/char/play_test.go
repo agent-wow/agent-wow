@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hazim-j/agent-wow/pkg/world"
+	"github.com/agent-wow/agent-wow/pkg/world"
 )
 
 func TestEnterWorldTransfersEncryptedConnection(t *testing.T) {

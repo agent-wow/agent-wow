@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hazim-j/agent-wow/pkg/opcode"
+	"github.com/agent-wow/agent-wow/pkg/opcode"
 )
 
 type decoder struct {

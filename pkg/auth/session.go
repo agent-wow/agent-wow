@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/hazim-j/agent-wow/pkg/opcode"
+	"github.com/agent-wow/agent-wow/pkg/opcode"
 )
 
 // Session holds the verified credentials for a subsequent worldserver login.
