@@ -7,7 +7,7 @@
 package fixturev1
 
 import (
-	v1 "github.com/hazim-j/agent-wow/pkg/modules/v1"
+	v1 "github.com/agent-wow/agent-wow/pkg/modules/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
@@ -186,7 +186,7 @@ const file_internal_modulefixture_fixture_proto_rawDesc = "" +
 	"\aFixture\x12D\n" +
 	"\aExecute\x12\x1c.agentwow.fixture.v1.Request\x1a\x1b.agentwow.fixture.v1.Result\x12C\n" +
 	"\bOnPacket\x12\x1f.agentwow.module.v1.WorldPacket\x1a\x16.google.protobuf.Empty\x12>\n" +
-	"\fBeforeLogout\x12\x16.google.protobuf.Empty\x1a\x16.google.protobuf.EmptyBCZAgithub.com/hazim-j/agent-wow/internal/modulefixture/api;fixturev1b\x06proto3"
+	"\fBeforeLogout\x12\x16.google.protobuf.Empty\x1a\x16.google.protobuf.EmptyBEZCgithub.com/agent-wow/agent-wow/internal/modulefixture/api;fixturev1b\x06proto3"
 
 var (
 	file_internal_modulefixture_fixture_proto_rawDescOnce sync.Once

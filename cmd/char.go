@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hazim-j/agent-wow/pkg/auth"
-	"github.com/hazim-j/agent-wow/pkg/char"
-	"github.com/hazim-j/agent-wow/pkg/world"
+	"github.com/agent-wow/agent-wow/pkg/auth"
+	"github.com/agent-wow/agent-wow/pkg/char"
+	"github.com/agent-wow/agent-wow/pkg/world"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )

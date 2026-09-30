@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hazim-j/agent-wow/pkg/modules/discovery"
-	"github.com/hazim-j/agent-wow/pkg/modules/internal/testutil"
+	"github.com/agent-wow/agent-wow/pkg/modules/discovery"
+	"github.com/agent-wow/agent-wow/pkg/modules/internal/testutil"
 )
 
 func TestRegistryAccessorsProtectValidatedConfiguration(t *testing.T) {

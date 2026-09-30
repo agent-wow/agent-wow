@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/hazim-j/agent-wow/pkg/modules/callback"
-	"github.com/hazim-j/agent-wow/pkg/modules/runner"
-	"github.com/hazim-j/agent-wow/pkg/modules/session"
-	"github.com/hazim-j/agent-wow/pkg/modules/v1"
+	"github.com/agent-wow/agent-wow/pkg/modules/callback"
+	"github.com/agent-wow/agent-wow/pkg/modules/runner"
+	"github.com/agent-wow/agent-wow/pkg/modules/session"
+	"github.com/agent-wow/agent-wow/pkg/modules/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

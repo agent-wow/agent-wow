@@ -11,10 +11,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hazim-j/agent-wow/pkg/modules/runtime"
-	"github.com/hazim-j/agent-wow/pkg/modules/session"
-	"github.com/hazim-j/agent-wow/pkg/opcode"
-	"github.com/hazim-j/agent-wow/pkg/worldconn"
+	"github.com/agent-wow/agent-wow/pkg/modules/runtime"
+	"github.com/agent-wow/agent-wow/pkg/modules/session"
+	"github.com/agent-wow/agent-wow/pkg/opcode"
+	"github.com/agent-wow/agent-wow/pkg/worldconn"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

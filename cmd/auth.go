@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hazim-j/agent-wow/internal/config"
-	"github.com/hazim-j/agent-wow/internal/credentials"
-	"github.com/hazim-j/agent-wow/pkg/account"
-	"github.com/hazim-j/agent-wow/pkg/auth"
-	"github.com/hazim-j/agent-wow/pkg/database"
+	"github.com/agent-wow/agent-wow/internal/config"
+	"github.com/agent-wow/agent-wow/internal/credentials"
+	"github.com/agent-wow/agent-wow/pkg/account"
+	"github.com/agent-wow/agent-wow/pkg/auth"
+	"github.com/agent-wow/agent-wow/pkg/database"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )

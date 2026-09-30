@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hazim-j/agent-wow/pkg/auth"
-	"github.com/hazim-j/agent-wow/pkg/worldconn"
+	"github.com/agent-wow/agent-wow/pkg/auth"
+	"github.com/agent-wow/agent-wow/pkg/worldconn"
 )
 
 type realmPeer struct {

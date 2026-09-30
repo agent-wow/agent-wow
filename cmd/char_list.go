@@ -5,8 +5,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/hazim-j/agent-wow/internal/output"
-	"github.com/hazim-j/agent-wow/pkg/maps"
+	"github.com/agent-wow/agent-wow/internal/output"
+	"github.com/agent-wow/agent-wow/pkg/maps"
 	"github.com/spf13/cobra"
 )
 

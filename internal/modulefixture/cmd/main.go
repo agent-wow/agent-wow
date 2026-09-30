@@ -8,9 +8,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/hazim-j/agent-wow/internal/modulefixture"
-	fixturev1 "github.com/hazim-j/agent-wow/internal/modulefixture/api"
-	"github.com/hazim-j/agent-wow/pkg/modules/v1"
+	"github.com/agent-wow/agent-wow/internal/modulefixture"
+	fixturev1 "github.com/agent-wow/agent-wow/internal/modulefixture/api"
+	"github.com/agent-wow/agent-wow/pkg/modules/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"

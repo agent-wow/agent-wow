@@ -3,7 +3,7 @@ package maps_test
 import (
 	"testing"
 
-	"github.com/hazim-j/agent-wow/pkg/maps"
+	"github.com/agent-wow/agent-wow/pkg/maps"
 )
 
 func TestMapName(t *testing.T) {

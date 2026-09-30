@@ -6,10 +6,10 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/hazim-j/agent-wow/pkg/auth"
-	"github.com/hazim-j/agent-wow/pkg/char"
-	"github.com/hazim-j/agent-wow/pkg/maps"
-	realmtypes "github.com/hazim-j/agent-wow/pkg/realm"
+	"github.com/agent-wow/agent-wow/pkg/auth"
+	"github.com/agent-wow/agent-wow/pkg/char"
+	"github.com/agent-wow/agent-wow/pkg/maps"
+	realmtypes "github.com/agent-wow/agent-wow/pkg/realm"
 )
 
 func writeJSON(out io.Writer, value any) error {

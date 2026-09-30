@@ -8,8 +8,8 @@ import (
 	"io"
 	"os"
 
+	"github.com/agent-wow/agent-wow/internal/config"
 	"github.com/dgraph-io/badger/v4"
-	"github.com/hazim-j/agent-wow/internal/config"
 )
 
 func main() {

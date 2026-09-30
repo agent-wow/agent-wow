@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hazim-j/agent-wow/pkg/worldconn"
+	"github.com/agent-wow/agent-wow/pkg/worldconn"
 )
 
 // This peer independently encodes the build-12340 headers and fixture payloads.

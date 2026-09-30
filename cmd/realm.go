@@ -10,11 +10,11 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/hazim-j/agent-wow/internal/config"
-	"github.com/hazim-j/agent-wow/internal/output"
-	realmstore "github.com/hazim-j/agent-wow/internal/realm"
-	"github.com/hazim-j/agent-wow/pkg/auth"
-	realmtypes "github.com/hazim-j/agent-wow/pkg/realm"
+	"github.com/agent-wow/agent-wow/internal/config"
+	"github.com/agent-wow/agent-wow/internal/output"
+	realmstore "github.com/agent-wow/agent-wow/internal/realm"
+	"github.com/agent-wow/agent-wow/pkg/auth"
+	realmtypes "github.com/agent-wow/agent-wow/pkg/realm"
 	"github.com/spf13/cobra"
 )
 

@@ -16,13 +16,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hazim-j/agent-wow/pkg/modules/discovery"
-	"github.com/hazim-j/agent-wow/pkg/modules/runner"
-	"github.com/hazim-j/agent-wow/pkg/modules/runtime"
-	"github.com/hazim-j/agent-wow/pkg/opcode"
-	"github.com/hazim-j/agent-wow/pkg/world"
-	"github.com/hazim-j/agent-wow/pkg/worldconn"
-	"github.com/hazim-j/agent-wow/pkg/worldrpc"
+	"github.com/agent-wow/agent-wow/pkg/modules/discovery"
+	"github.com/agent-wow/agent-wow/pkg/modules/runner"
+	"github.com/agent-wow/agent-wow/pkg/modules/runtime"
+	"github.com/agent-wow/agent-wow/pkg/opcode"
+	"github.com/agent-wow/agent-wow/pkg/world"
+	"github.com/agent-wow/agent-wow/pkg/worldconn"
+	"github.com/agent-wow/agent-wow/pkg/worldrpc"
 )
 
 // TestDockerModuleSession deliberately uses only its own Compose projects and a

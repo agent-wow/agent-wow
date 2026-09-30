@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hazim-j/agent-wow/pkg/modules/runtime"
-	"github.com/hazim-j/agent-wow/pkg/world"
+	"github.com/agent-wow/agent-wow/pkg/modules/runtime"
+	"github.com/agent-wow/agent-wow/pkg/world"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"

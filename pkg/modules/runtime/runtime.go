@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/hazim-j/agent-wow/pkg/modules/session"
+	"github.com/agent-wow/agent-wow/pkg/modules/session"
 )
 
 // Runtime is the module lifecycle and invocation contract used by a world session.

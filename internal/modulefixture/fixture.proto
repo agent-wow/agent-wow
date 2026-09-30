@@ -1,6 +1,6 @@
 syntax = "proto3";
 package agentwow.fixture.v1;
-option go_package = "github.com/hazim-j/agent-wow/internal/modulefixture/api;fixturev1";
+option go_package = "github.com/agent-wow/agent-wow/internal/modulefixture/api;fixturev1";
 
 import "api/module/v1/session.proto";
 import "google/protobuf/empty.proto";

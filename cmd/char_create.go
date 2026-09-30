@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hazim-j/agent-wow/pkg/char"
+	"github.com/agent-wow/agent-wow/pkg/char"
 	"github.com/spf13/cobra"
 )
 

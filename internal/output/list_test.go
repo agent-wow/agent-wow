@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/hazim-j/agent-wow/internal/output"
-	"github.com/hazim-j/agent-wow/pkg/auth"
-	"github.com/hazim-j/agent-wow/pkg/char"
+	"github.com/agent-wow/agent-wow/internal/output"
+	"github.com/agent-wow/agent-wow/pkg/auth"
+	"github.com/agent-wow/agent-wow/pkg/char"
 )
 
 func TestCharacterJSONUnknownLocation(t *testing.T) {

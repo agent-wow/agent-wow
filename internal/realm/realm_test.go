@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hazim-j/agent-wow/internal/realm"
+	"github.com/agent-wow/agent-wow/internal/realm"
 )
 
 func TestRealmFile(t *testing.T) {

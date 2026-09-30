@@ -14,13 +14,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hazim-j/agent-wow/internal/config"
-	"github.com/hazim-j/agent-wow/pkg/auth"
-	"github.com/hazim-j/agent-wow/pkg/char"
-	"github.com/hazim-j/agent-wow/pkg/modules/discovery"
-	"github.com/hazim-j/agent-wow/pkg/modules/runtime"
-	"github.com/hazim-j/agent-wow/pkg/world"
-	"github.com/hazim-j/agent-wow/pkg/worldrpc"
+	"github.com/agent-wow/agent-wow/internal/config"
+	"github.com/agent-wow/agent-wow/pkg/auth"
+	"github.com/agent-wow/agent-wow/pkg/char"
+	"github.com/agent-wow/agent-wow/pkg/modules/discovery"
+	"github.com/agent-wow/agent-wow/pkg/modules/runtime"
+	"github.com/agent-wow/agent-wow/pkg/world"
+	"github.com/agent-wow/agent-wow/pkg/worldrpc"
 	"github.com/spf13/cobra"
 )
 

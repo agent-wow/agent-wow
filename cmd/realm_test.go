@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hazim-j/agent-wow/internal/config"
-	realmstore "github.com/hazim-j/agent-wow/internal/realm"
-	"github.com/hazim-j/agent-wow/pkg/auth"
-	"github.com/hazim-j/agent-wow/pkg/database"
+	"github.com/agent-wow/agent-wow/internal/config"
+	realmstore "github.com/agent-wow/agent-wow/internal/realm"
+	"github.com/agent-wow/agent-wow/pkg/auth"
+	"github.com/agent-wow/agent-wow/pkg/database"
 )
 
 func TestRealmListJSON(t *testing.T) {

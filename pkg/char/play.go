@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/hazim-j/agent-wow/pkg/world"
+	"github.com/agent-wow/agent-wow/pkg/world"
 )
 
 // EnterWorld verifies ownership and permanently hands this client's existing

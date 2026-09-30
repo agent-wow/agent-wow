@@ -304,7 +304,7 @@ const file_api_module_v1_session_proto_rawDesc = "" +
 	"\n" +
 	"SendPacket\x12%.agentwow.module.v1.SendPacketRequest\x1a\x16.google.protobuf.Empty\x12E\n" +
 	"\bGetClock\x12\x16.google.protobuf.Empty\x1a!.agentwow.module.v1.ClockResponse\x12a\n" +
-	"\fInvokeModule\x12'.agentwow.module.v1.InvokeModuleRequest\x1a(.agentwow.module.v1.InvokeModuleResponseB3Z1github.com/hazim-j/agent-wow/pkg/modules/v1;modv1b\x06proto3"
+	"\fInvokeModule\x12'.agentwow.module.v1.InvokeModuleRequest\x1a(.agentwow.module.v1.InvokeModuleResponseB5Z3github.com/agent-wow/agent-wow/pkg/modules/v1;modv1b\x06proto3"
 
 var (
 	file_api_module_v1_session_proto_rawDescOnce sync.Once

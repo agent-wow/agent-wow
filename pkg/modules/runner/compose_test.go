@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hazim-j/agent-wow/pkg/modules/discovery"
-	"github.com/hazim-j/agent-wow/pkg/modules/internal/testutil"
+	"github.com/agent-wow/agent-wow/pkg/modules/discovery"
+	"github.com/agent-wow/agent-wow/pkg/modules/internal/testutil"
 )
 
 // Compose config validates the actual merge/interpolation rules without using

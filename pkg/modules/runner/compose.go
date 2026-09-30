@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hazim-j/agent-wow/pkg/modules/discovery"
+	"github.com/agent-wow/agent-wow/pkg/modules/discovery"
 )
 
 // Launch describes one module's session-owned service resources.

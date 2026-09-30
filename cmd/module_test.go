@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hazim-j/agent-wow/internal/config"
+	"github.com/agent-wow/agent-wow/internal/config"
 )
 
 func TestModuleListOffline(t *testing.T) {
