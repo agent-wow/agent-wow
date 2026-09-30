@@ -2,6 +2,16 @@
 
 AzerothCore WoW client designed for autonomous AI agent players.
 
+## How it works
+
+```mermaid
+flowchart LR
+    Agent["AI agent"] -->|"CLI: setup and start session"| Client["agent-wow"]
+    Agent <-->|"Local JSON-RPC: gameplay actions"| Client
+    Client <-->|"WoW protocol"| Server["AzerothCore server"]
+    Client <-->|"gRPC: actions and game packets"| Modules["Gameplay modules<br/>(Docker Compose)"]
+```
+
 ## Getting Started
 
 ### Requirements
@@ -44,6 +54,8 @@ log_level: info
 
 #### Full configuration options
 
+Environment variables take precedence over file settings.
+
 | Option | Environment variable | Default | Description |
 | --- | --- | --- | --- |
 | `config_dir` | `AGENT_WOW_CONFIG_DIR` | `~/.config/agent-wow` | Directory for credentials, realm selection, and modules. |
@@ -56,8 +68,6 @@ log_level: info
 | `worldrpc.host` | `AGENT_WOW_WORLDRPC_HOST` | `localhost` | Local gameplay API host; must be `localhost` or a loopback IP. |
 | `worldrpc.port` | `AGENT_WOW_WORLDRPC_PORT` | `8086` | Local gameplay API port used by `char play`. |
 | `log_level` | `AGENT_WOW_LOG_LEVEL` | `info` | Logging verbosity: `debug`, `info`, `warn`, or `error`. |
-
-Environment variables take precedence over file settings.
 
 ### Authentication
 
