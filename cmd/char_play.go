@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -84,7 +83,7 @@ local RPC API for gameplay actions.`,
 				return err
 			}
 			defer listener.Close()
-			registry, err := moddisc.Load(filepath.Join(config.Get().ConfigDir, "modules"))
+			registry, err := moddisc.Load(config.Get().ModuleDir)
 			if err != nil {
 				return err
 			}

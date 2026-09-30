@@ -23,6 +23,7 @@ type Server struct {
 type Config struct {
 	ConfigDir     string     `mapstructure:"config_dir"`
 	DataDir       string     `mapstructure:"data_dir"`
+	ModuleDir     string     `mapstructure:"module_dir"`
 	AuthFilePath  string     `mapstructure:"auth_file_path"`
 	RealmFilePath string     `mapstructure:"realm_file_path"`
 	AuthServer    Server     `mapstructure:"authserver"`
@@ -72,6 +73,7 @@ func Init(configFile string) error {
 	}
 
 	// Resolve these defaults after loading overrides so they follow ConfigDir.
+	v.SetDefault("module_dir", filepath.Join(v.GetString("config_dir"), "modules"))
 	v.SetDefault("auth_file_path", filepath.Join(v.GetString("config_dir"), "auth.json"))
 	v.SetDefault("realm_file_path", filepath.Join(v.GetString("config_dir"), "realm.json"))
 	var cfg Config
@@ -87,6 +89,9 @@ func Init(configFile string) error {
 	}
 	if strings.TrimSpace(cfg.DataDir) == "" {
 		return errors.New("data_dir must not be empty")
+	}
+	if strings.TrimSpace(cfg.ModuleDir) == "" {
+		return errors.New("module_dir must not be empty")
 	}
 	if strings.TrimSpace(cfg.AuthFilePath) == "" {
 		return errors.New("auth_file_path must not be empty")

@@ -12,8 +12,12 @@ import (
 )
 
 func TestModuleListOffline(t *testing.T) {
-	initTestConfig(t)
-	root := filepath.Join(config.Get().ConfigDir, "modules")
+	path := initTestConfig(t)
+	root := t.TempDir()
+	t.Setenv("AGENT_WOW_MODULE_DIR", root)
+	if err := config.Init(path); err != nil {
+		t.Fatal(err)
+	}
 	for _, asJSON := range []bool{false, true} {
 		cmd := newModuleCommand()
 		args := []string{"list"}

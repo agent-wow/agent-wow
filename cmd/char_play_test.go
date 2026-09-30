@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -222,6 +223,42 @@ func TestPlayReservesListenerBeforeConnecting(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPlayLoadsConfiguredModuleDirectory(t *testing.T) {
+	listener, err := worldrpc.Listen(context.Background(), "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	t.Setenv("AGENT_WOW_WORLDRPC_HOST", "127.0.0.1")
+	t.Setenv("AGENT_WOW_WORLDRPC_PORT", strconv.Itoa(listener.Addr().(*net.TCPAddr).Port))
+	path := initTestConfig(t)
+	root := t.TempDir()
+	t.Setenv("AGENT_WOW_MODULE_DIR", root)
+	if err := config.Init(path); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, "invalid")
+	if err := os.Mkdir(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "module.yaml"), []byte("api_version: 999\nenabled: true\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	command := characterCommands{play: func(context.Context, auth.Realm, *auth.Session, string, *slog.Logger, world.Options) (playSession, error) {
+		t.Error("entered world before validating modules")
+		return nil, errors.New("unexpected")
+	}}.command()
+	command.SetArgs([]string{"play", "Mira"})
+	command.SetErr(io.Discard)
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "module invalid: unsupported api_version 999") {
+		t.Fatalf("expected validation of configured module directory, got %v", err)
+	}
+}
+
 func TestPlayCommandListenerConfig(t *testing.T) {
 	for _, tc := range []struct {
 		name, host, envHost, wantErr string
