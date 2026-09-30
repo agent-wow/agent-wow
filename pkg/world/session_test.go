@@ -2,7 +2,6 @@ package world
 
 import (
 	"bytes"
-	"compress/zlib"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -117,7 +116,7 @@ func awaitDone(t *testing.T, s *Session) {
 	}
 }
 
-func TestReadinessNeedsLocationAndAnsweredSync(t *testing.T) {
+func TestReadinessNeedsLoginVerificationAndAnsweredSync(t *testing.T) {
 	for _, syncFirst := range []bool{false, true} {
 		t.Run(map[bool]string{false: "location first", true: "sync first"}[syncFirst], func(t *testing.T) {
 			first, release := make(chan struct{}), make(chan struct{})
@@ -255,13 +254,6 @@ func TestSharedLogoutSurvivesCallerCancellation(t *testing.T) {
 			}
 		}()
 	}
-	for range 100 {
-		copy := s.Snapshot()
-		copy.Location.X = 999
-		if s.Snapshot().Location.X != 1 {
-			t.Fatal("snapshot aliases session")
-		}
-	}
 	close(finish)
 	wg.Wait()
 	awaitDone(t, s)
@@ -322,17 +314,14 @@ func TestLogoutTimeoutAndWriteFailure(t *testing.T) {
 }
 
 func TestMalformedPacketsAndDisconnect(t *testing.T) {
-	nan := positionBody(0, float32(math.NaN()), 0, 0, 0)
 	for _, tc := range []struct {
 		name string
 		op   uint16
 		body []byte
 	}{
-		{"short location", 0x236, []byte{1}}, {"nonfinite", 0x236, nan},
+		{"short location", 0x236, []byte{1}},
 		{"short sync", 0x390, []byte{1}}, {"short pong", 0x1dd, nil},
 		{"bad logout", 0x04c, []byte{0, 0, 0, 0, 9}}, {"bad complete", 0x04d, []byte{1}},
-		{"bad control", 0x159, []byte{1}}, {"bad teleport", 0x0c7, []byte{255}},
-		{"bad transfer", 0x03f, nil}, {"bad bundle", 0x51e, []byte{1, 0, 0, 0, 0}},
 		{"warden", 0x2e6, []byte{1}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -357,96 +346,6 @@ func TestMalformedPacketsAndDisconnect(t *testing.T) {
 			t.Fatal(s.Err())
 		}
 	})
-}
-
-func TestControlAndRelocation(t *testing.T) {
-	trigger, near, proceed, far, finish := make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
-	s := startTestSession(t, quietTimings(), func(p *testPeer) {
-		p.login()
-		<-trigger
-		// More than the old selection packet limit must be drained indefinitely.
-		for range 4100 {
-			p.send(0x096, []byte{42})
-		}
-		p.send(0x0fa, []byte{1, 0, 0, 0})
-		if len(p.expect(0x0fc)) != 0 {
-			t.Fatal("cinematic payload")
-		}
-		p.send(0x464, []byte{1, 0, 0, 0})
-		p.expect(0x465)
-		p.send(0x159, []byte{1, 99, 1})
-		if len(p.expect(0x26a)) != 8 {
-			t.Fatal("active mover")
-		}
-		// Root control inside the uncompressed bundle; expect an actual root bit.
-		sub := []byte{8, 0xe8, 0, 1, 99, 1, 0, 0, 0}
-		p.send(0x51e, append([]byte{9, 0, 0, 0}, sub...))
-		ack := p.expect(0x0e9)
-		if len(ack) != 36 || binary.LittleEndian.Uint32(ack[6:10]) != 0x800 {
-			t.Fatal("wrong root ack", ack)
-		}
-		// Compressed unroot bundle exercises the independent zlib wrapper.
-		sub[1] = 0xea
-		var compressed bytes.Buffer
-		z := zlib.NewWriter(&compressed)
-		z.Write(sub)
-		z.Close()
-		p.send(0x2fb, append([]byte{9, 0, 0, 0}, compressed.Bytes()...))
-		p.expect(0x0eb)
-		p.send(0x344, []byte{1, 99, 2, 0, 0, 0})
-		ack = p.expect(0x345)
-		if len(ack) != 40 || binary.LittleEndian.Uint32(ack[len(ack)-4:]) != 0 {
-			t.Fatal("wrong flight ack", ack)
-		}
-		// Packed GUID, order counter, flags, flags2, time, XYZO, fall time.
-		teleport := []byte{1, 99, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0}
-		for _, f := range []float32{4, 5, 6, 1.5} {
-			teleport = binary.LittleEndian.AppendUint32(teleport, math.Float32bits(f))
-		}
-		teleport = append(teleport, 0, 0, 0, 0)
-		p.send(0x0c7, teleport)
-		ack = p.expect(0x0c7)
-		if len(ack) != 10 || binary.LittleEndian.Uint32(ack[2:6]) != 17 {
-			t.Fatal("wrong teleport ack", ack)
-		}
-		// Sync makes the preceding state publication observable without sleeps.
-		p.sync(6)
-		close(near)
-		<-proceed
-		p.send(0x03f, []byte{1, 0, 0, 0})
-		p.send(0x03e, positionBody(1, 7, 8, 9, 2))
-		p.expect(0x0dc)
-		p.sync(0)
-		close(far)
-		<-finish
-		p.closed()
-	})
-	close(trigger)
-	<-near
-	state := s.Snapshot()
-	if state.Location.X != 4 || state.Location.Orientation != 1.5 || state.Location.MapID != 0 {
-		t.Fatal(state)
-	}
-	close(proceed)
-	<-far
-	// The sync reply can be read just before the owner publishes readiness.
-	deadline := time.Now().Add(time.Second)
-	for s.Snapshot().Status != InWorld && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	state = s.Snapshot()
-	if state.Status != InWorld || state.Location.MapID != 1 || state.Location.Z != 9 || state.Location.ObservedAt.IsZero() {
-		t.Fatal(state)
-	}
-	close(finish)
-	s.Close()
-}
-
-func FuzzMovementDecoder(f *testing.F) {
-	f.Add(make([]byte, 30))
-	f.Add([]byte{255})
-	f.Add(bytes.Repeat([]byte{255}, 120))
-	f.Fuzz(func(t *testing.T, b []byte) { r := decoder{data: b}; r.movement(); _ = r.finish() })
 }
 
 func TestLogoutBeforeReadiness(t *testing.T) {

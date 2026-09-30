@@ -17,6 +17,8 @@ import (
 	"github.com/hazim-j/agent-wow/internal/config"
 	"github.com/hazim-j/agent-wow/pkg/auth"
 	"github.com/hazim-j/agent-wow/pkg/char"
+	"github.com/hazim-j/agent-wow/pkg/modules/discovery"
+	"github.com/hazim-j/agent-wow/pkg/modules/runtime"
 	"github.com/hazim-j/agent-wow/pkg/world"
 	"github.com/hazim-j/agent-wow/pkg/worldrpc"
 	"github.com/spf13/cobra"
@@ -24,18 +26,21 @@ import (
 
 type playSession interface {
 	worldrpc.Session
+	Snapshot() world.State
 	Done() <-chan struct{}
 	Err() error
 	Close() error
 }
 
-func startCharacterPlay(ctx context.Context, realm auth.Realm, authSession *auth.Session, selector string, logger *slog.Logger) (playSession, error) {
-	client, err := char.Dial(ctx, realm, authSession)
+func startCharacterPlay(ctx context.Context, realm auth.Realm, authSession *auth.Session, selector string, logger *slog.Logger, opts world.Options) (playSession, error) {
+	network, cancel := context.WithTimeout(ctx, opts.EntryTimeout)
+	defer cancel()
+	client, err := char.Dial(network, realm, authSession)
 	if err != nil {
 		return nil, err
 	}
 	defer client.Close() // EnterWorld transfers ownership; this is then harmless.
-	characters, err := client.List(ctx)
+	characters, err := client.List(network)
 	if err != nil {
 		return nil, err
 	}
@@ -43,26 +48,30 @@ func startCharacterPlay(ctx context.Context, realm auth.Realm, authSession *auth
 	if err != nil {
 		return nil, err
 	}
-	return client.EnterWorld(ctx, selected.GUID, logger)
+	cancel()
+	return client.EnterWorld(ctx, selected.GUID, logger, opts)
 }
 
 func (deps characterCommands) playCommand(timeout *time.Duration) *cobra.Command {
-	return &cobra.Command{
+	var moduleTimeout time.Duration
+	command := &cobra.Command{
 		Use: "play <name|guid>", Short: "Enter the world and serve a local gameplay RPC API",
 		Long: `Enter the world as the selected character. This creates a persistent connection with the world server and exposes a
 local RPC API for gameplay actions.`,
 		Example: `  agent-wow char play Arlen
   agent-wow char play 99
-  curl -H 'Content-Type: application/json' http://127.0.0.1:8086/rpc -d '{"jsonrpc":"2.0","id":1,"method":"session.getState"}'
   curl -H 'Content-Type: application/json' http://127.0.0.1:8086/rpc -d '{"jsonrpc":"2.0","id":2,"method":"session.logout"}'`,
 		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) (result error) {
 			cmd.SilenceUsage = true
 			if strings.TrimSpace(args[0]) == "" {
 				return errors.New("character name or GUID must not be empty")
 			}
 			if *timeout <= 0 {
 				return errors.New("--timeout must be greater than zero")
+			}
+			if moduleTimeout <= 0 {
+				return errors.New("--module-timeout must be greater than zero")
 			}
 			logger := slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), &slog.HandlerOptions{Level: config.Get().LogLevel}))
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
@@ -74,19 +83,29 @@ local RPC API for gameplay actions.`,
 				return err
 			}
 			defer listener.Close()
+			registry, err := moddisc.Load(config.Get().ModuleDir)
+			if err != nil {
+				return err
+			}
 			realm, saved, err := characterTarget(startup)
 			if err != nil {
 				return err
 			}
-			session, err := deps.play(startup, realm, saved, args[0], logger)
+			cancel()
+			playCtx, cancelPlay := context.WithCancel(ctx)
+			defer cancelPlay()
+			runtime := modrt.New(registry, nil, logger)
+			session, err := deps.play(playCtx, realm, saved, args[0], logger, world.Options{Modules: runtime, ModuleTimeout: moduleTimeout, EntryTimeout: *timeout})
 			if err != nil {
-				return err
+				return errors.Join(err, runtime.Close())
 			}
-			cancel() // Startup cancellation cannot affect the transferred connection.
-			defer session.Close()
+			cancelPlay() // Startup cancellation cannot affect the transferred connection.
+			defer func() { result = errors.Join(result, session.Close()) }()
 			return servePlay(ctx, listener, session, logger)
 		},
 	}
+	command.Flags().DurationVar(&moduleTimeout, "module-timeout", 2*time.Minute, "Timeout for starting all enabled modules")
+	return command
 }
 
 func worldRPCAddress() string {

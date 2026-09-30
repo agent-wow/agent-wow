@@ -113,6 +113,7 @@ func TestStoragePaths(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("AGENT_WOW_CONFIG_DIR", tc.envConfigDir)
 			t.Setenv("AGENT_WOW_DATA_DIR", tc.envDataDir)
+			t.Setenv("AGENT_WOW_MODULE_DIR", "")
 			t.Setenv("AGENT_WOW_AUTH_FILE_PATH", tc.envFile)
 			t.Setenv("AGENT_WOW_REALM_FILE_PATH", "")
 			path := filepath.Join(t.TempDir(), "config.json")
@@ -135,6 +136,43 @@ func TestStoragePaths(t *testing.T) {
 			}
 			if want := filepath.Join(tc.wantConfigDir, "realm.json"); cfg.RealmFilePath != want {
 				t.Errorf("RealmFilePath=%q, want %q", cfg.RealmFilePath, want)
+			}
+			if want := filepath.Join(tc.wantConfigDir, "modules"); cfg.ModuleDir != want {
+				t.Errorf("ModuleDir=%q, want %q", cfg.ModuleDir, want)
+			}
+		})
+	}
+}
+
+func TestModuleDir(t *testing.T) {
+	for _, tc := range []struct {
+		name, config, envDir, want, wantErr string
+	}{
+		{name: "explicit directory", config: `{"module_dir":"/tmp/task-modules"}`, want: "/tmp/task-modules"},
+		{name: "relative directory", config: `{"module_dir":"./task-modules"}`, want: "./task-modules"},
+		{name: "environment overrides file", config: `{"module_dir":"/tmp/from-config"}`, envDir: "/tmp/from-env", want: "/tmp/from-env"},
+		{name: "environment overrides default", config: `{}`, envDir: "/tmp/from-env", want: "/tmp/from-env"},
+		{name: "empty directory", config: `{"module_dir":""}`, wantErr: "module_dir must not be empty"},
+		{name: "whitespace directory", config: `{"module_dir":"  "}`, wantErr: "module_dir must not be empty"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("AGENT_WOW_MODULE_DIR", tc.envDir)
+			path := filepath.Join(t.TempDir(), "config.json")
+			if err := os.WriteFile(path, []byte(tc.config), 0600); err != nil {
+				t.Fatal(err)
+			}
+			err := Init(path)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected %q, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := Get().ModuleDir; got != tc.want {
+				t.Errorf("ModuleDir=%q, want %q", got, tc.want)
 			}
 		})
 	}

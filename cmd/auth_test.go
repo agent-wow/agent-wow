@@ -306,6 +306,7 @@ func initTestConfig(t *testing.T) string {
 	root := t.TempDir()
 	t.Setenv("AGENT_WOW_CONFIG_DIR", filepath.Join(root, "config"))
 	t.Setenv("AGENT_WOW_DATA_DIR", filepath.Join(root, "data"))
+	t.Setenv("AGENT_WOW_MODULE_DIR", "")
 	t.Setenv("AGENT_WOW_AUTH_FILE_PATH", "")
 	t.Setenv("AGENT_WOW_REALM_FILE_PATH", "")
 	configPath := filepath.Join(root, "config.json")

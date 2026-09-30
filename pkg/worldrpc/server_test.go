@@ -3,18 +3,70 @@ package worldrpc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/hazim-j/agent-wow/pkg/modules/runtime"
 	"github.com/hazim-j/agent-wow/pkg/world"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
-type fakeSession struct{ logout func(context.Context) error }
+type fakeSession struct {
+	logout func(context.Context) error
+	invoke func(context.Context, string, json.RawMessage) (json.RawMessage, error)
+}
 
-func (s *fakeSession) Snapshot() world.State {
-	return world.State{Status: world.InWorld, Character: world.Character{GUID: 9007199254740993, Name: "Mira"}, Realm: world.Realm{ID: 1, Name: "AzerothCore"}}
+func (s *fakeSession) InvokeJSON(ctx context.Context, method string, params json.RawMessage) (json.RawMessage, error) {
+	if s.invoke != nil {
+		return s.invoke(ctx, method, params)
+	}
+	if method != "test.echo" {
+		return nil, &modrt.CallError{Code: -32601, Err: errors.New("Method not found")}
+	}
+	return json.RawMessage(`{"character":{"guid":"9007199254740993"}}`), nil
+}
+
+func TestRPCNullAndStructuredTargetError(t *testing.T) {
+	detail := structpb.NewStringValue("typed status detail")
+	target, err := status.New(codes.FailedPrecondition, "initializing").WithDetails(detail)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := Handler(&fakeSession{invoke: func(_ context.Context, name string, _ json.RawMessage) (json.RawMessage, error) {
+		if name == "worker.null" {
+			return json.RawMessage("null"), nil
+		}
+		return nil, &modrt.CallError{Code: -32000, Module: "worker", Method: "execute", Err: target.Err()}
+	}})
+	w := call(h, `{"jsonrpc":"2.0","id":1,"method":"worker.null"}`)
+	if !strings.Contains(w.Body.String(), `"result":null`) {
+		t.Fatal(w.Body.String())
+	}
+	w = call(h, `{"jsonrpc":"2.0","id":2,"method":"worker.execute"}`)
+	var result struct {
+		Error struct {
+			Code int
+			Data struct {
+				Module, Method string
+				Status         string       `json:"grpc_status"`
+				Details        []*anypb.Any `json:"grpc_details"`
+			}
+		}
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	data := result.Error.Data
+	if result.Error.Code != -32000 || data.Module != "worker" || data.Method != "execute" || data.Status != "FailedPrecondition" || len(data.Details) != 1 || !proto.Equal(data.Details[0], target.Proto().Details[0]) {
+		t.Fatal(w.Body.String())
+	}
 }
 func (s *fakeSession) Logout(ctx context.Context) error {
 	if s.logout != nil {
@@ -34,18 +86,19 @@ func TestRPCMethodsAndErrors(t *testing.T) {
 		name, body   string
 		code, status int
 	}{
-		{"state", `{"jsonrpc":"2.0","id":9007199254740993,"method":"session.getState"}`, 0, 200},
+		{"state", `{"jsonrpc":"2.0","id":9007199254740993,"method":"test.echo"}`, 0, 200},
 		{"logout", `{"jsonrpc":"2.0","id":"bye","method":"session.logout","params":{}}`, 0, 200},
-		{"empty array params", `{"jsonrpc":"2.0","id":null,"method":"session.getState","params":[]}`, 0, 200},
-		{"notification", `{"jsonrpc":"2.0","method":"session.getState"}`, 0, 204},
+		{"empty array params", `{"jsonrpc":"2.0","id":null,"method":"session.logout","params":[]}`, 0, 200},
+		{"notification", `{"jsonrpc":"2.0","method":"test.echo"}`, 0, 204},
+		{"removed state", `{"jsonrpc":"2.0","id":1,"method":"session.getState"}`, -32601, 200},
 		{"unknown", `{"jsonrpc":"2.0","id":1,"method":"movement.walk"}`, -32601, 200},
 		{"args", `{"jsonrpc":"2.0","id":1,"method":"session.logout","params":{"force":true}}`, -32602, 200},
 		{"scalar params", `{"jsonrpc":"2.0","id":1,"method":"session.logout","params":false}`, -32602, 200},
-		{"batch", `[{"jsonrpc":"2.0","id":1,"method":"session.getState"}]`, -32600, 200},
+		{"batch", `[{"jsonrpc":"2.0","id":1,"method":"test.echo"}]`, -32600, 200},
 		{"null request", `null`, -32600, 200},
-		{"version", `{"jsonrpc":"1.0","id":1,"method":"session.getState"}`, -32600, 200},
+		{"version", `{"jsonrpc":"1.0","id":1,"method":"test.echo"}`, -32600, 200},
 		{"no method", `{"jsonrpc":"2.0","id":1}`, -32600, 200},
-		{"bad ID", `{"jsonrpc":"2.0","id":true,"method":"session.getState"}`, -32600, 200},
+		{"bad ID", `{"jsonrpc":"2.0","id":true,"method":"test.echo"}`, -32600, 200},
 		{"malformed", `{`, -32700, 200},
 		{"trailing", `{} {}`, -32700, 200},
 	} {
@@ -119,7 +172,7 @@ func TestLocalHTTPRestrictions(t *testing.T) {
 			if path == "" {
 				path = "/rpc"
 			}
-			r := httptest.NewRequest(method, "http://127.0.0.1:8086"+path, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"session.getState"}`))
+			r := httptest.NewRequest(method, "http://127.0.0.1:8086"+path, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"test.echo"}`))
 			r.Header.Set("Content-Type", "application/json")
 			if tc.host != "" {
 				r.Host = tc.host

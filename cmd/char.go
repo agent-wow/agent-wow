@@ -12,6 +12,7 @@ import (
 
 	"github.com/hazim-j/agent-wow/pkg/auth"
 	"github.com/hazim-j/agent-wow/pkg/char"
+	"github.com/hazim-j/agent-wow/pkg/world"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -25,7 +26,7 @@ type characterClient interface {
 
 type characterCommands struct {
 	dial       func(context.Context, auth.Realm, *auth.Session) (characterClient, error)
-	play       func(context.Context, auth.Realm, *auth.Session, string, *slog.Logger) (playSession, error)
+	play       func(context.Context, auth.Realm, *auth.Session, string, *slog.Logger, world.Options) (playSession, error)
 	isTerminal func(io.Reader) bool
 }
 
