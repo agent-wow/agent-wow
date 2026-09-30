@@ -67,9 +67,6 @@ agent-wow auth login    # Authenticate and select the first available realm
 agent-wow auth status   # Check the saved session
 ```
 
-Later logins keep your selected realm. Run `auth login` again if your session
-expires. `auth init` stores the account credentials in `config_dir/auth.json`.
-
 ### Commands
 
 Use `<command> --help` for all options. List commands support `--json` for scripting.
