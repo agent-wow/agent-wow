@@ -18,6 +18,7 @@ import (
 
 	"github.com/hazim-j/agent-wow/internal/config"
 	"github.com/hazim-j/agent-wow/pkg/auth"
+	"github.com/hazim-j/agent-wow/pkg/modules/runtime"
 	"github.com/hazim-j/agent-wow/pkg/world"
 	"github.com/hazim-j/agent-wow/pkg/worldrpc"
 )
@@ -34,6 +35,9 @@ func newFakePlaySession() *fakePlaySession {
 	return &fakePlaySession{state: world.State{Status: world.InWorld, Realm: world.Realm{ID: 7, Name: "Test"}, Character: world.Character{GUID: 9007199254740993, Name: "Mira"}}, done: make(chan struct{})}
 }
 func (s *fakePlaySession) Snapshot() world.State { s.mu.Lock(); defer s.mu.Unlock(); return s.state }
+func (s *fakePlaySession) InvokeJSON(context.Context, string, json.RawMessage) (json.RawMessage, error) {
+	return nil, &modrt.CallError{Code: -32601, Err: errors.New("Method not found")}
+}
 func (s *fakePlaySession) Logout(ctx context.Context) error {
 	if s.logout != nil {
 		return s.logout(ctx)
@@ -106,7 +110,7 @@ func TestPlayFlushesLogoutResponse(t *testing.T) {
 	exited := make(chan error, 1)
 	go func() { exited <- servePlay(context.Background(), listener, s, logger) }()
 	url := readyURL(t, out.messages)
-	if body := postRPC(t, url, "session.getState"); !bytes.Contains(body, []byte(`"status":"in_world"`)) {
+	if body := postRPC(t, url, "session.getState"); !bytes.Contains(body, []byte(`"code":-32601`)) {
 		t.Fatal(string(body))
 	}
 	if body := postRPC(t, url, "session.logout"); !bytes.Contains(body, []byte(`"result":{"status":"closed"}`)) {
@@ -147,7 +151,7 @@ func TestPlayCancellationGracefullyLogsOut(t *testing.T) {
 	url := readyURL(t, out.messages)
 	cancel()
 	<-called
-	if body := postRPC(t, url, "session.getState"); !bytes.Contains(body, []byte(`"status":"logging_out"`)) {
+	if body := postRPC(t, url, "session.getState"); !bytes.Contains(body, []byte(`"code":-32601`)) {
 		t.Fatal(string(body))
 	}
 	close(finish)
@@ -167,7 +171,7 @@ func TestPlayCommandStartupTimeoutDoesNotLimitGameplay(t *testing.T) {
 	s := newFakePlaySession()
 	s.state.Realm = world.Realm{ID: realm.ID, Name: realm.Name}
 	var startup context.Context
-	deps := characterCommands{play: func(ctx context.Context, r auth.Realm, a *auth.Session, selector string, logger *slog.Logger) (playSession, error) {
+	deps := characterCommands{play: func(ctx context.Context, r auth.Realm, a *auth.Session, selector string, logger *slog.Logger, opts world.Options) (playSession, error) {
 		if r != realm || *a != *saved || selector != "Mira" || logger == nil {
 			t.Error("wrong startup arguments")
 		}
@@ -208,7 +212,7 @@ func TestPlayReservesListenerBeforeConnecting(t *testing.T) {
 	t.Setenv("AGENT_WOW_WORLDRPC_HOST", "127.0.0.1")
 	t.Setenv("AGENT_WOW_WORLDRPC_PORT", strconv.Itoa(listener.Addr().(*net.TCPAddr).Port))
 	initTestConfig(t)
-	command := characterCommands{play: func(context.Context, auth.Realm, *auth.Session, string, *slog.Logger) (playSession, error) {
+	command := characterCommands{play: func(context.Context, auth.Realm, *auth.Session, string, *slog.Logger, world.Options) (playSession, error) {
 		t.Error("entered world before binding listener")
 		return nil, errors.New("unexpected")
 	}}.command()
@@ -233,7 +237,7 @@ func TestPlayCommandListenerConfig(t *testing.T) {
 			}
 			defer listener.Close()
 			// Cobra constructs commands before the root command loads config.
-			command := characterCommands{play: func(context.Context, auth.Realm, *auth.Session, string, *slog.Logger) (playSession, error) {
+			command := characterCommands{play: func(context.Context, auth.Realm, *auth.Session, string, *slog.Logger, world.Options) (playSession, error) {
 				t.Error("entered world before validating/binding the RPC listener")
 				return nil, errors.New("unexpected")
 			}}.command()

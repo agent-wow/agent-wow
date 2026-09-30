@@ -45,10 +45,7 @@ func TestEnterWorldTransfersEncryptedConnection(t *testing.T) {
 		if err := p.write(0x159, []byte{1, 99, 1}); err != nil {
 			return err
 		}
-		body, err = p.expect(0x26a)
-		if err != nil || len(body) != 8 || binary.LittleEndian.Uint64(body) != 99 {
-			return fmt.Errorf("active mover: %x, %v", body, err)
-		}
+		// Client control is now opaque gameplay traffic; no core acknowledgement.
 		if err := p.write(0x390, []byte{7, 0, 0, 0}); err != nil {
 			return err
 		}
@@ -116,7 +113,7 @@ func TestEnterWorldTransfersEncryptedConnection(t *testing.T) {
 		t.Fatal("startup cancellation/old Close killed gameplay")
 	}
 	state := session.Snapshot()
-	if state.Status != world.InWorld || state.Character.Name != "Mira" || state.Realm.ID != 7 || state.Location.MapID != 530 || state.Location.Y != -2.5 {
+	if state.Status != world.InWorld || state.Character.Name != "Mira" || state.Realm.ID != 7 {
 		t.Fatal(state)
 	}
 	if err := session.Logout(context.Background()); err != nil {

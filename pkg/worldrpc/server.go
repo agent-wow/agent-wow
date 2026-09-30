@@ -51,7 +51,7 @@ type response struct {
 	Error   *rpcError       `json:"error,omitempty"`
 }
 
-// Handler serves session.getState and session.logout at POST /rpc using
+// Handler serves configured module methods and session.logout at POST /rpc using
 // single-request JSON-RPC 2.0. Requests must be JSON from local processes;
 // browser-origin requests are rejected and CORS is disabled.
 // The caller owns HTTP serving, timeouts, and shutdown.

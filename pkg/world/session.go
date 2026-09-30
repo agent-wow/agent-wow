@@ -2,27 +2,60 @@ package world
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/hazim-j/agent-wow/pkg/modules/runtime"
+	"github.com/hazim-j/agent-wow/pkg/modules/session"
+	"github.com/hazim-j/agent-wow/pkg/opcode"
 	"github.com/hazim-j/agent-wow/pkg/worldconn"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Session has one reader and one owner loop. Only the loop writes packets and
 // changes protocol state; RPC callers read snapshots or submit commands.
 type Session struct {
-	conn      *worldconn.Conn
-	logger    *slog.Logger
-	mu        sync.RWMutex
-	state     State
-	err       error
-	done      chan struct{}
-	abort     chan struct{}
-	closeOnce sync.Once
-	logout    chan chan *logoutOperation
+	conn         *worldconn.Conn
+	logger       *slog.Logger
+	mu           sync.RWMutex
+	state        State
+	err          error
+	done         chan struct{}
+	abort        chan struct{}
+	closeOnce    sync.Once
+	logout       chan chan *logoutOperation
+	modules      modrt.Runtime
+	started      time.Time
+	loginStarted atomic.Bool
+	startLogin   chan struct{}
+	startupDone  chan struct{}
+	closed       chan struct{}
+	writes       chan writeRequest
+	ctx          context.Context
+	cancel       context.CancelFunc
+	workers      sync.WaitGroup
+	cleanupErr   error
+}
+
+// Options injects a session-owned module runtime and separate startup budgets.
+// Zero values retain the existing connection-only behavior.
+type Options struct {
+	Modules       modrt.Runtime
+	ModuleTimeout time.Duration
+	EntryTimeout  time.Duration
+}
+type writeRequest struct {
+	ctx   context.Context
+	op    uint32
+	body  []byte
+	reply chan error
 }
 
 type logoutOperation struct {
@@ -41,11 +74,11 @@ type packet struct {
 // The context controls entry only. Close or Logout ends a successful session.
 // Successful packet reads and writes use logger at debug level, including opcode
 // and payload size but never payload data. A nil logger disables logging.
-func Enter(ctx context.Context, conn *worldconn.Conn, realm Realm, character Character, logger *slog.Logger) (*Session, error) {
-	return enter(ctx, conn, realm, character, logger, defaultTimings)
+func Enter(ctx context.Context, conn *worldconn.Conn, realm Realm, character Character, logger *slog.Logger, options ...Options) (*Session, error) {
+	return enter(ctx, conn, realm, character, logger, defaultTimings, options...)
 }
 
-func enter(ctx context.Context, conn *worldconn.Conn, realm Realm, character Character, logger *slog.Logger, timing timings) (*Session, error) {
+func enter(ctx context.Context, conn *worldconn.Conn, realm Realm, character Character, logger *slog.Logger, timing timings, options ...Options) (*Session, error) {
 	if err := ctx.Err(); err != nil {
 		_ = conn.Close()
 		return nil, err
@@ -61,15 +94,43 @@ func enter(ctx context.Context, conn *worldconn.Conn, realm Realm, character Cha
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
-	s := &Session{conn: conn, logger: logger, state: State{Status: EnteringWorld, Realm: realm, Character: character}, done: make(chan struct{}), abort: make(chan struct{}), logout: make(chan chan *logoutOperation)}
+	var opts Options
+	if len(options) > 0 {
+		opts = options[0]
+	}
+	if opts.ModuleTimeout == 0 {
+		opts.ModuleTimeout = 2 * time.Minute
+	}
+	if opts.Modules == nil {
+		opts.Modules = modrt.New(nil, nil, logger)
+	}
+	lifetime, stop := context.WithCancel(context.Background())
+	s := &Session{conn: conn, logger: logger, state: State{Status: EnteringWorld, Realm: realm, Character: character}, done: make(chan struct{}), abort: make(chan struct{}), logout: make(chan chan *logoutOperation), modules: opts.Modules, started: time.Now(), startLogin: make(chan struct{}), startupDone: make(chan struct{}), closed: make(chan struct{}), writes: make(chan writeRequest), ctx: lifetime, cancel: stop}
 	ready := make(chan struct{})
 	go s.run(ready, timing)
+	startup, endStartup := context.WithTimeout(ctx, opts.ModuleTimeout)
+	stopStartup := context.AfterFunc(lifetime, endStartup)
+	err := s.modules.Start(startup, modsession.Session{Identity: modsession.Identity{CharacterGUID: character.GUID, CharacterName: character.Name, RealmID: realm.ID, RealmName: realm.Name}, SendPacket: s.SendPacket, Clock: s.Clock})
+	endStartup()
+	stopStartup()
+	close(s.startupDone)
+	if err != nil {
+		_ = s.Close()
+		return nil, errors.Join(fmt.Errorf("start modules: %w", err), s.cleanupErr)
+	}
+	if opts.EntryTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, opts.EntryTimeout)
+		defer cancel()
+	}
+	close(s.startLogin)
 	select {
 	case <-ctx.Done():
 		_ = s.Close()
 		return nil, ctx.Err()
 	case <-s.done:
-		return nil, s.entryError()
+		_ = s.Close()
+		return nil, errors.Join(s.entryError(), s.cleanupErr)
 	case <-ready:
 		if err := ctx.Err(); err != nil {
 			_ = s.Close()
@@ -77,7 +138,8 @@ func enter(ctx context.Context, conn *worldconn.Conn, realm Realm, character Cha
 		}
 		select {
 		case <-s.done:
-			return nil, s.entryError()
+			_ = s.Close()
+			return nil, errors.Join(s.entryError(), s.cleanupErr)
 		default:
 		}
 		return s, nil
@@ -95,12 +157,56 @@ func (s *Session) entryError() error {
 func (s *Session) Snapshot() State {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	state := s.state
-	if state.Location != nil {
-		location := *state.Location
-		state.Location = &location
+	return s.state
+}
+
+// Clock is shared with module callbacks and core time synchronization.
+func (s *Session) Clock() uint32 { return uint32(time.Since(s.started) / time.Millisecond) }
+
+func (s *Session) InvokeJSON(ctx context.Context, method string, params json.RawMessage) (json.RawMessage, error) {
+	return s.modules.InvokeJSON(ctx, method, params)
+}
+
+// SendPacket queues one opaque gameplay payload on the transport owner loop.
+// Once the write starts its outcome can be unknown to a canceled caller; callers
+// must never retry it automatically.
+func (s *Session) SendPacket(ctx context.Context, op uint32, body []byte) error {
+	if err := ctx.Err(); err != nil {
+		return status.FromContextError(err).Err()
 	}
-	return state
+	name := opcode.WorldName(op)
+	if !(strings.HasPrefix(name, "CMSG_") || strings.HasPrefix(name, "MSG_")) {
+		return status.Error(codes.InvalidArgument, "opcode must be client or bidirectional")
+	}
+	switch op {
+	case opcode.CMSGAuthSession, opcode.CMSGAuthSRP6Begin, opcode.CMSGAuthSRP6Proof, opcode.CMSGAuthSRP6Recode, opcode.CMSGRedirectionAuthProof,
+		opcode.CMSGPlayerLogin, opcode.CMSGCheatPlayerLogin, opcode.CMSGCheckLoginCriteria,
+		opcode.CMSGPing, opcode.CMSGKeepAlive, opcode.CMSGTimeSyncResp, opcode.CMSGWardenData,
+		opcode.CMSGPlayerLogout, opcode.CMSGLogoutRequest, opcode.CMSGLogoutCancel:
+		return status.Error(codes.PermissionDenied, "opcode is owned by the session")
+	}
+	if len(body)+4 >= 10240 {
+		return status.Error(codes.InvalidArgument, "outgoing realm packet is too large")
+	}
+	if !s.loginStarted.Load() {
+		return status.Error(codes.FailedPrecondition, "player login has not begun")
+	}
+	r := writeRequest{ctx: ctx, op: op, body: append([]byte(nil), body...), reply: make(chan error, 1)}
+	select {
+	case <-s.done:
+		return status.Error(codes.FailedPrecondition, "session is closed")
+	case <-ctx.Done():
+		return status.FromContextError(ctx.Err()).Err()
+	case s.writes <- r:
+	}
+	select {
+	case err := <-r.reply:
+		return err
+	case <-s.done:
+		return status.Error(codes.FailedPrecondition, "session is closed")
+	case <-ctx.Done():
+		return status.FromContextError(ctx.Err()).Err()
+	}
 }
 
 func (s *Session) Done() <-chan struct{} { return s.done }
@@ -113,7 +219,8 @@ func (s *Session) Err() error { s.mu.RLock(); defer s.mu.RUnlock(); return s.err
 func (s *Session) Close() error {
 	s.closeOnce.Do(func() { close(s.abort); _ = s.conn.Close() })
 	<-s.done
-	return nil
+	<-s.closed
+	return s.cleanupErr
 }
 
 // Logout shares an outstanding logout operation. ctx cancels only this caller's
@@ -166,8 +273,10 @@ func (s *Session) run(ready chan struct{}, timing timings) {
 			}
 		}
 	}()
-	e := &engine{s: s, timing: timing, started: time.Now(), ready: ready, phase: EnteringWorld, pings: make(map[uint32]time.Time)}
+	e := &engine{s: s, timing: timing, ready: ready, phase: EnteringWorld, pings: make(map[uint32]time.Time)}
 	err := e.loop(packets)
+	s.modules.Stop()
+	s.cancel()
 	close(readerStop)
 	_ = s.conn.Close()
 	<-readerDone
@@ -192,4 +301,8 @@ func (s *Session) run(ready chan struct{}, timing timings) {
 		close(e.logout.done)
 	}
 	close(s.done)
+	<-s.startupDone
+	s.workers.Wait()
+	s.cleanupErr = s.modules.Close()
+	close(s.closed)
 }

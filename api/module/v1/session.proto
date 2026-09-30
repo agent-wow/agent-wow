@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package agentwow.module.v1;
+option go_package = "github.com/hazim-j/agent-wow/pkg/modules/v1;modv1";
+
+import "google/protobuf/any.proto";
+import "google/protobuf/empty.proto";
+
+// WorldPacket carries an unchanged worldserver packet to a subscribed handler.
+message WorldPacket {
+  uint32 opcode = 1;
+  bytes payload = 2;
+}
+
+// SendPacketRequest carries one outbound gameplay packet without transport framing.
+message SendPacketRequest {
+  uint32 opcode = 1;
+  bytes payload = 2;
+}
+
+// ClockResponse samples the clock shared by modules and core time-sync replies.
+message ClockResponse {
+  // Milliseconds from the session's monotonic origin, modulo 2^32.
+  uint32 client_time_ms = 1;
+}
+
+// InvokeModuleRequest selects a manifest-listed method on a direct dependency.
+message InvokeModuleRequest {
+  string module = 1;
+  string method = 2;
+  google.protobuf.Any request = 3;
+}
+
+// InvokeModuleResponse carries the typed result without JSON conversion.
+message InvokeModuleResponse {
+  google.protobuf.Any result = 1;
+}
+
+// Session exposes callbacks on each module's session-owned socket.
+service Session {
+  // SendPacket confirms a transport write, not server acceptance. Never retry automatically.
+  rpc SendPacket(SendPacketRequest) returns (google.protobuf.Empty);
+  // GetClock returns the shared monotonic session clock.
+  rpc GetClock(google.protobuf.Empty) returns (ClockResponse);
+  // InvokeModule forwards a typed call to a dependency. Preserve ctx for nested calls.
+  rpc InvokeModule(InvokeModuleRequest) returns (InvokeModuleResponse);
+}

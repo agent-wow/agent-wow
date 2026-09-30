@@ -5,27 +5,27 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/hazim-j/agent-wow/pkg/modules/runtime"
 	"github.com/hazim-j/agent-wow/pkg/world"
+	"google.golang.org/grpc/status"
 )
 
 // Session is the gameplay API required by Handler. *world.Session implements it.
 // Methods must support concurrent callers. Canceling a Logout context should
 // stop only that caller's wait, not the underlying gameplay session.
 type Session interface {
-	Snapshot() world.State
+	InvokeJSON(context.Context, string, json.RawMessage) (json.RawMessage, error)
 	Logout(context.Context) error
 }
 
 // routeMethod owns method dispatch, parameter validation, and gameplay error
 // mapping. HTTP handling and JSON-RPC envelopes remain in server.go.
 func routeMethod(ctx context.Context, session Session, method string, params json.RawMessage) (any, *rpcError) {
-	if !emptyParams(params) {
-		return nil, &rpcError{Code: -32602, Message: "Invalid params: this method takes no arguments"}
-	}
 	switch method {
-	case "session.getState":
-		return session.Snapshot(), nil
 	case "session.logout":
+		if !emptyParams(params) {
+			return nil, &rpcError{Code: -32602, Message: "Invalid params: this method takes no arguments"}
+		}
 		if err := session.Logout(ctx); err != nil {
 			fault := &rpcError{Code: -32000, Message: err.Error()}
 			var rejection *world.LogoutError
@@ -40,7 +40,19 @@ func routeMethod(ctx context.Context, session Session, method string, params jso
 			Status world.Status `json:"status"`
 		}{world.Closed}, nil
 	default:
-		return nil, &rpcError{Code: -32601, Message: "Method not found"}
+		result, err := session.InvokeJSON(ctx, method, params)
+		if err == nil {
+			return result, nil
+		}
+		var call *modrt.CallError
+		if errors.As(err, &call) {
+			st := status.Convert(call.Err)
+			return nil, &rpcError{Code: call.Code, Message: call.Error(), Data: map[string]any{
+				"module": call.Module, "method": call.Method, "grpc_status": st.Code().String(),
+				"grpc_message": st.Message(), "grpc_details": st.Proto().Details,
+			}}
+		}
+		return nil, &rpcError{Code: -32000, Message: err.Error()}
 	}
 }
 
