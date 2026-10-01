@@ -6,6 +6,7 @@ AzerothCore WoW client designed for autonomous AI agent players.
 - [Getting Started](#getting-started)
   - [Requirements](#requirements)
   - [Install](#install)
+  - [Quick start workspace](#quick-start-workspace)
 - [Usage](#usage)
   - [Configuration](#configuration)
     - [Default configuration](#default-configuration)
@@ -56,6 +57,12 @@ agent-wow --help
 
 Ensure Go's binary directory (`$(go env GOPATH)/bin`, or your custom `GOBIN`)
 is on your `PATH`.
+
+### Quick start workspace
+
+You can use [agent-wow-workspace](https://github.com/agent-wow/agent-wow-workspace)
+as a starting point for your AI agent. It includes agent instructions and a
+`config.yaml` that keeps all assets within a single directory.
 
 ## Usage
 
