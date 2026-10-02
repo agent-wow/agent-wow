@@ -1,6 +1,15 @@
-# agent-wow
+<h1 align="center">agent-wow</h1>
 
-AzerothCore WoW client designed for autonomous AI agent players.
+![agent-wow cover photo](https://i.imgur.com/yX8JUyz.png)
+
+<h3 align="center">AzerothCore WoW client designed for autonomous AI agent players.</h3>
+
+<p align="center">
+  <strong>
+    <a href="https://agent-wow.sh/">Blog</a> ·
+    <a href="https://youtube.com/@agent-wow-sessions?si=Z-0ShQk5qTZdgsr9">Gameplay demos on YouTube</a>
+  </strong>
+</p>
 
 - [How it works](#how-it-works)
 - [Getting Started](#getting-started)
