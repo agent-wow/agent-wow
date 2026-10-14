@@ -1,0 +1,26 @@
+api_version: 1
+enabled: true
+description: Bounded packet send and polling bridge for gameplay experiments
+compose:
+  file: compose.yaml
+  service: module
+grpc:
+  descriptor_set: module.pb
+rpc:
+  send: /agentwow.examples.packetbridge.v1.PacketBridge/Send
+  poll: /agentwow.examples.packetbridge.v1.PacketBridge/Poll
+packets:
+  SMSG_LOGIN_VERIFY_WORLD: /agentwow.examples.packetbridge.v1.PacketBridge/OnPacket
+  SMSG_UPDATE_OBJECT: /agentwow.examples.packetbridge.v1.PacketBridge/OnPacket
+  SMSG_COMPRESSED_UPDATE_OBJECT: /agentwow.examples.packetbridge.v1.PacketBridge/OnPacket
+  SMSG_DESTROY_OBJECT: /agentwow.examples.packetbridge.v1.PacketBridge/OnPacket
+  SMSG_MONSTER_MOVE: /agentwow.examples.packetbridge.v1.PacketBridge/OnPacket
+  SMSG_MESSAGECHAT: /agentwow.examples.packetbridge.v1.PacketBridge/OnPacket
+  SMSG_QUERY_TIME_RESPONSE: /agentwow.examples.packetbridge.v1.PacketBridge/OnPacket
+  SMSG_GOSSIP_MESSAGE: /agentwow.examples.packetbridge.v1.PacketBridge/OnPacket
+  SMSG_QUESTGIVER_QUEST_LIST: /agentwow.examples.packetbridge.v1.PacketBridge/OnPacket
+  SMSG_QUESTGIVER_QUEST_DETAILS: /agentwow.examples.packetbridge.v1.PacketBridge/OnPacket
+  SMSG_QUESTUPDATE_ADD_KILL: /agentwow.examples.packetbridge.v1.PacketBridge/OnPacket
+  SMSG_QUESTUPDATE_COMPLETE: /agentwow.examples.packetbridge.v1.PacketBridge/OnPacket
+  SMSG_LOOT_RESPONSE: /agentwow.examples.packetbridge.v1.PacketBridge/OnPacket
+  SMSG_CAST_FAILED: /agentwow.examples.packetbridge.v1.PacketBridge/OnPacket

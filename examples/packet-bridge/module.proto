@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package agentwow.examples.packetbridge.v1;
+option go_package = "github.com/agent-wow/agent-wow/examples/packet-bridge/api;bridgev1";
+
+import "api/module/v1/session.proto";
+import "google/protobuf/empty.proto";
+
+message Packet {
+  uint64 sequence = 1;
+  uint32 opcode = 2;
+  bytes payload = 3;
+}
+
+message PollRequest {
+  // Return packets with a sequence strictly greater than after.
+  uint64 after = 1;
+  // Zero selects the default; values above 256 are capped.
+  uint32 limit = 2;
+}
+
+message PollResponse {
+  uint64 latest = 1;
+  uint64 oldest = 2;
+  // True when packets between after and oldest have been evicted.
+  bool gap = 3;
+  repeated Packet packets = 4;
+}
+
+service PacketBridge {
+  // A successful call confirms transport write, not server acceptance.
+  rpc Send(agentwow.module.v1.SendPacketRequest) returns (google.protobuf.Empty);
+  rpc Poll(PollRequest) returns (PollResponse);
+  rpc OnPacket(agentwow.module.v1.WorldPacket) returns (google.protobuf.Empty);
+}
